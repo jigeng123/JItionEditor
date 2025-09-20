@@ -21,11 +21,11 @@
 	"contributes": {
 		"customEditors": [
 			{
-				"viewType": "catCustoms.catScratch",
-				"displayName": "Cat Scratch",
+				"viewType": "Jition",
+				"displayName": "Jiton",
 				"selector": [
 					{
-						"filenamePattern": "*.cscratch"
+						"filenamePattern": "*.ji"
 					}
 				]
 			},

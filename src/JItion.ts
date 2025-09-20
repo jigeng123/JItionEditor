@@ -1,27 +1,16 @@
 import * as vscode from 'vscode';
 import { getNonce } from './util';
 
-/**
- * Provider for cat scratch editors.
- * 
- * Cat scratch editors are used for `.cscratch` files, which are just json files.
- * To get started, run this extension and open an empty `.cscratch` file in VS Code.
- * 
- * This provider demonstrates:
- * 
- * - Setting up the initial webview for a custom editor.
- * - Loading scripts and styles in a custom editor.
- * - Synchronizing changes between a text document and a custom editor.
- */
-export class CatScratchEditorProvider implements vscode.CustomTextEditorProvider {
+
+export class JitionEditorProvider implements vscode.CustomTextEditorProvider {
 
 	public static register(context: vscode.ExtensionContext): vscode.Disposable {
-		const provider = new CatScratchEditorProvider(context);
-		const providerRegistration = vscode.window.registerCustomEditorProvider(CatScratchEditorProvider.viewType, provider);
+		const provider = new JitionEditorProvider(context);
+		const providerRegistration = vscode.window.registerCustomEditorProvider(JitionEditorProvider.viewType, provider);
 		return providerRegistration;
 	}
 
-	private static readonly viewType = 'catCustoms.catScratch';
+	private static readonly viewType = 'Jition';
 
 	private static readonly scratchCharacters = ['😸', '😹', '😺', '😻', '😼', '😽', '😾', '🙀', '😿', '🐱'];
 
@@ -144,7 +133,7 @@ export class CatScratchEditorProvider implements vscode.CustomTextEditorProvider
 	 */
 	private addNewScratch(document: vscode.TextDocument) {
 		const json = this.getDocumentAsJson(document);
-		const character = CatScratchEditorProvider.scratchCharacters[Math.floor(Math.random() * CatScratchEditorProvider.scratchCharacters.length)];
+		const character = JitionEditorProvider.scratchCharacters[Math.floor(Math.random() * JitionEditorProvider.scratchCharacters.length)];
 		json.scratches = [
 			...(Array.isArray(json.scratches) ? json.scratches : []),
 			{
