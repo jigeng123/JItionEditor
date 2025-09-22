@@ -26,8 +26,9 @@ window.addEventListener("message", (event) => {
   }
 });
 //JIGENG重新加载时，获得state，并重新渲染
+
 const state = vscode.getState();
 if (state) {
-  initColorPalette();
   RenderContent(state.text);
 }
+initColorPalette();

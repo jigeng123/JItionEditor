@@ -31,3 +31,12 @@
       1. 获得editor DOM元素(全局)
       2. 直接将text作为innerHTML加入到editor中
    2. 保存text到vscode--setstate
+
+
+123123
+我去恶趣味
+213
+123
+123
+123
+TODO 123

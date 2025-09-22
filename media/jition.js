@@ -40,7 +40,7 @@ editorContainer.addEventListener("focusout", (e) => {
 
   // 保存内容
   const block = code.closest(".block");
-  if (block) saveEditorState();
+  if (block) saveContent();
 });
 // 语言切换
 editorContainer.addEventListener("change", (e) => {
@@ -1125,21 +1125,21 @@ document.addEventListener("keydown", (e) => {
   const mod = isMac ? e.metaKey : e.ctrlKey;
 
   // --- 撤销操作 Ctrl/Cmd + Z ---
-  if (mod && !e.shiftKey && e.key.toLowerCase() === "z") {
-    e.preventDefault(); // 阻止浏览器默认撤销行为
-    undo(); // 执行自定义撤销函数
-    return; // 退出监听
-  }
+  // if (mod && !e.shiftKey && e.key.toLowerCase() === "z") {
+  //   e.preventDefault(); // 阻止浏览器默认撤销行为
+  //   undo(); // 执行自定义撤销函数
+  //   return; // 退出监听
+  // }
 
-  // --- 重做操作 Ctrl/Cmd + Shift + Z 或 Ctrl/Cmd + Y ---
-  if (
-    (mod && e.shiftKey && e.key.toLowerCase() === "z") || // Mac 常用 Cmd+Shift+Z
-    (mod && e.key.toLowerCase() === "y") // Windows 常用 Ctrl+Y
-  ) {
-    e.preventDefault(); // 阻止浏览器默认重做行为
-    redo(); // 执行自定义重做函数
-    return; // 退出监听
-  }
+  // // --- 重做操作 Ctrl/Cmd + Shift + Z 或 Ctrl/Cmd + Y ---
+  // if (
+  //   (mod && e.shiftKey && e.key.toLowerCase() === "z") || // Mac 常用 Cmd+Shift+Z
+  //   (mod && e.key.toLowerCase() === "y") // Windows 常用 Ctrl+Y
+  // ) {
+  //   e.preventDefault(); // 阻止浏览器默认重做行为
+  //   redo(); // 执行自定义重做函数
+  //   return; // 退出监听
+  // }
 
   // --- 命令菜单导航 ---
   // 当命令菜单处于激活状态且存在 DOM 元素

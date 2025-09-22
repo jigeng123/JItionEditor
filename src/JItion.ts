@@ -101,7 +101,7 @@ export class JitionEditorProvider implements vscode.CustomTextEditorProvider {
 			</div>
 			<h1 class="filename">${filebasename}</h1>
 			<div id="editor-container">
-			<div id="editor"><h1>初始化失败,重新加载</h1></div>
+			<div id="editor"></div>
 			<div id="statebar"></div>
 			</div>
     <!-- 💡💡💡💡💡工具栏💡💡💡💡💡 -->
