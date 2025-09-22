@@ -1,14 +1,253 @@
-{
-  "scratches": [
-    {
-      "id": "8lYOoWqz2rHtPuhvnZ43eMx1mG6WnFrm",
-      "text": "😸",
-      "created": 1584577931699
-    },
-    {
-      "id": "aZ57bJUEaXZ5wuBAX6NfGuj85Y6iw84N",
-      "text": "😻",
-      "created": 1584577933329
-    }
-  ]
-}
+<div class="block details-block pre-block" data-type="pre" draggable="true">
+  <details open="" data-lang="javascript">
+    <summary><button class="toggle-btn">▶</button>
+      <div class="block-content-wrapper">
+        <div class="drag-handle">⠿</div><button class="delete-btn"
+          title="删除此块">×</button>
+      </div>
+      <div class="code-toolbar"><select>
+          <option value="javascript">JavaScript</option>
+          <option value="python">Python</option>
+          <option value="html">HTML</option>
+          <option value="css">CSS</option>
+          <option value="bash">Bash</option>
+          <option value="plaintext">Plain Text</option>
+        </select><button>Copy</button></div>
+    </summary>
+    <pre class="language-javascript" tabindex="0"><code class="language-javascript" contenteditable="true" data-placeholder="请输入代码..."><span class="token keyword">import</span> re
+
+</code></pre>
+    <div class="block-children"></div>
+  </details>
+</div>
+<div class="block list-block-ul details-block" data-type="ul" draggable="true">
+  <details open="">
+    <summary><button class="toggle-btn">▶</button>
+      <div class="block-content-wrapper">
+        <div class="drag-handle">⠿</div><button class="delete-btn"
+          title="删除此块">×</button>
+      </div>
+    </summary>
+    <ul class="block-children">
+      <li class="block" data-type="li" draggable="true">
+        <div class="block-content-wrapper">
+          <div class="drag-handle">⠿</div><span class="list-bullet">•</span>
+          <div class="content" contenteditable="true" data-type="li"
+            data-placeholder="列表项">1</div><button class="delete-btn"
+            title="删除此项">×</button>
+        </div>
+      </li>
+      <li class="block" data-type="li" draggable="true">
+        <div class="block-content-wrapper">
+          <div class="drag-handle">⠿</div><span class="list-bullet">•</span>
+          <div class="content" contenteditable="true" data-type="li"
+            data-placeholder="列表项">2</div><button class="delete-btn"
+            title="删除此项">×</button>
+        </div>
+      </li>
+      <li class="block" data-type="li" draggable="true">
+        <div class="block-content-wrapper">
+          <div class="drag-handle">⠿</div><span class="list-bullet">•</span>
+          <div class="content" contenteditable="true" data-type="li"
+            data-placeholder="列表项">3</div><button class="delete-btn"
+            title="删除此项">×</button>
+        </div>
+      </li>
+    </ul>
+  </details>
+</div>
+<div class="block list-block-ol details-block" data-type="ol" draggable="true">
+  <details open="">
+    <summary><button class="toggle-btn">▶</button>
+      <div class="block-content-wrapper">
+        <div class="drag-handle">⠿</div><button class="delete-btn"
+          title="删除此块">×</button>
+      </div>
+    </summary>
+    <ol class="block-children">
+      <li class="block" data-type="li" draggable="true">
+        <div class="block-content-wrapper">
+          <div class="drag-handle">⠿</div><span class="list-bullet">1.</span>
+          <div class="content" contenteditable="true" data-type="li"
+            data-placeholder="列表项">1</div><button class="delete-btn"
+            title="删除此项">×</button>
+        </div>
+      </li>
+      <li class="block" data-type="li" draggable="true">
+        <div class="block-content-wrapper">
+          <div class="drag-handle">⠿</div><span class="list-bullet">2.</span>
+          <div class="content" contenteditable="true" data-type="li"
+            data-placeholder="列表项">2</div><button class="delete-btn"
+            title="删除此项">×</button>
+        </div>
+      </li>
+      <li class="block" data-type="li" draggable="true">
+        <div class="block-content-wrapper">
+          <div class="drag-handle">⠿</div><span class="list-bullet">3.</span>
+          <div class="content" contenteditable="true" data-type="li"
+            data-placeholder="列表项">3</div><button class="delete-btn"
+            title="删除此项">×</button>
+        </div>
+      </li>
+      <li class="block" data-type="li" draggable="true">
+        <div class="block-content-wrapper">
+          <div class="drag-handle">⠿</div><span class="list-bullet">4.</span>
+          <div class="content" contenteditable="true" data-type="li"
+            data-placeholder="列表项">4</div><button class="delete-btn"
+            title="删除此项">×</button>
+        </div>
+      </li>
+    </ol>
+  </details>
+</div>
+<div class="block list-block-task details-block" data-type="task"
+  draggable="true">
+  <details open="">
+    <summary><button class="toggle-btn">▶</button>
+      <div class="block-content-wrapper">
+        <div class="drag-handle">⠿</div><button class="delete-btn"
+          title="删除此块">×</button>
+      </div>
+    </summary>
+    <task class="block-children">
+      <li class="block" data-type="taskitem" draggable="true">
+        <div class="block-content-wrapper">
+          <div class="drag-handle">⠿</div><input type="checkbox"
+            class="task-checkbox">
+          <div class="content" contenteditable="true" data-type="taskitem"
+            data-placeholder="任务项">1</div><button class="delete-btn"
+            title="删除此项">×</button>
+        </div>
+      </li>
+      <li class="block" data-type="taskitem" draggable="true">
+        <div class="block-content-wrapper">
+          <div class="drag-handle">⠿</div><input type="checkbox"
+            class="task-checkbox">
+          <div class="content" contenteditable="true" data-type="taskitem"
+            data-placeholder="任务项">2</div><button class="delete-btn"
+            title="删除此项">×</button>
+        </div>
+      </li>
+      <li class="block" data-type="taskitem" draggable="true">
+        <div class="block-content-wrapper">
+          <div class="drag-handle">⠿</div><input type="checkbox"
+            class="task-checkbox">
+          <div class="content" contenteditable="true" data-type="taskitem"
+            data-placeholder="任务项">3</div><button class="delete-btn"
+            title="删除此项">×</button>
+        </div>
+      </li>
+    </task>
+  </details>
+</div>
+<div class="block" data-type="p" draggable="true">
+  <div class="block-content-wrapper">
+    <div class="drag-handle">⠿</div>
+    <p class="content" contenteditable="true" data-type="p"
+      data-placeholder="段落">段落</p><button class="delete-btn"
+      title="删除此块">×</button>
+  </div>
+</div>
+<div class="block details-block" data-type="heading" draggable="true"
+  id="heading-0-1758537538059">
+  <details open="">
+    <summary><button class="toggle-btn">▶</button>
+      <div class="block-content-wrapper">
+        <div class="drag-handle">⠿</div><span class="heading-number">1. </span>
+        <h1 class="content" contenteditable="true" data-type="heading"
+          data-level="1">一级标题</h1><button class="delete-btn"
+          title="删除此块">×</button>
+      </div>
+    </summary>
+    <div class="block-children">
+      <div class="block details-block" data-type="heading" draggable="true"
+        id="heading-1-1758537542200">
+        <details open="">
+          <summary><button class="toggle-btn">▶</button>
+            <div class="block-content-wrapper">
+              <div class="drag-handle">⠿</div><span class="heading-number">1.1.
+              </span>
+              <h2 class="content" contenteditable="true" data-type="heading"
+                data-placeholder="标题 " data-level="2">二级标题</h2><button
+                class="delete-btn" title="删除此块">×</button>
+            </div>
+          </summary>
+          <div class="block-children">
+            <div class="block" data-type="p" draggable="true"
+              data-_armed="true">
+              <div class="block-content-wrapper">
+                <div class="drag-handle">⠿</div>
+                <p class="content" contenteditable="true" data-type="p"
+                  data-placeholder="段落">内容</p><button class="delete-btn"
+                  title="删除此块">×</button>
+              </div>
+            </div>
+            <div class="block details-block" data-type="heading"
+              draggable="true" id="heading-2-1758537556546">
+              <details open="">
+                <summary><button class="toggle-btn">▶</button>
+                  <div class="block-content-wrapper">
+                    <div class="drag-handle">⠿</div><span
+                      class="heading-number">1.1.1. </span>
+                    <h3 class="content" contenteditable="true"
+                      data-type="heading" data-level="3">三级标题</h3><button
+                      class="delete-btn" title="删除此块">×</button>
+                  </div>
+                </summary>
+                <div class="block-children">
+                  <div class="block" data-type="p" draggable="true">
+                    <div class="block-content-wrapper">
+                      <div class="drag-handle">⠿</div>
+                      <p class="content" contenteditable="true" data-type="p"
+                        data-placeholder="段落">内容</p><button class="delete-btn"
+                        title="删除此块">×</button>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </details>
+</div>
+<div class="block" data-type="blockquote" draggable="true">
+  <div class="block-content-wrapper">
+    <div class="drag-handle">⠿</div>
+    <blockquote class="content" contenteditable="true" data-type="blockquote"
+      data-placeholder="引用">引用<div>1</div>
+      <div>2</div>
+      <div>3</div>
+    </blockquote><button class="delete-btn" title="删除此块">×</button>
+  </div>
+</div>
+<div class="block" data-type="table" draggable="true">
+  <div class="block-content-wrapper">
+    <div class="drag-handle">⠿</div><button class="delete-btn"
+      title="删除此块">×</button>
+  </div>
+  <div class="table-block">
+    <table>
+      <thead>
+        <tr>
+          <th contenteditable="true"></th>
+          <th contenteditable="true"></th>
+          <th contenteditable="true"></th>
+          <th contenteditable="true"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="table-controls"><button class="add-row">添加行</button><button
+      class="add-col">添加列</button><button class="del-row">删除行</button><button
+      class="del-col">删除列</button></div>
+</div>

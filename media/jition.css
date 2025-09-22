@@ -1,0 +1,749 @@
+    /* ====全局控制.css===== */
+
+    /* ====🎨 全局变量定义 (主题颜色等)===== */
+    /* 每个区块颜色,有三种,重中浅,以便使用 */
+    /* 背景色 */
+    :root {
+    	--bg: #191919;
+    	--bg1: #525252;
+    	--bg2: #b5b5b5;
+    }
+
+    /* 文字 (与背景相反)*/
+    :root {
+    	--text: #fcfcfc;
+    	--text1: #5a5a5a;
+    	--text2: #272727;
+    }
+
+    /* 高亮色 */
+    :root {
+    	--hi: #d43ba1;
+    	--hi1: #6942b1;
+    	--hi2: #8bff3d;
+    	--hi3: #ba892f;
+    }
+
+    /* box的尺寸,以边缘box为准,以免外扩导致不必要的计算 */
+    * {
+    	box-sizing: border-box;
+    }
+
+    /* 如果有跳转,会平滑滚动 */
+    html {
+    	scroll-behavior: smooth;
+    }
+
+    /* ====body===== */
+
+    /* 整体的字体,margin外边距,border边缘,padding内边距,背景,文字颜色 */
+    /* 边距接受四个值(顺时针,上右下左),两个值为上下/左右,一个值为四周所有 */
+    body {
+    	font-family: system-ui;
+    	margin: 0px;
+    	background: var(--hi);
+    	color: var(--text);
+    }
+
+    .block:hover:not(:has(.block:hover)) {
+    	box-shadow: 0 0 0 1.5px rgba(119, 187, 83, 0.6);
+    	border-radius: 10px;
+    	transition: box-shadow 0.2s ease;
+    }
+
+    /* 编辑状态 */
+    .block .content:focus {
+    	box-shadow: 0 0 0 2px rgba(85, 184, 255, 0.8);
+    	border-radius: 4px;
+    	transition: box-shadow 0.2s ease;
+    }
+
+    /*
+ * 核心样式：为内容为空的 contenteditable 元素显示占位符
+ */
+    [contenteditable="true"]:empty::before {
+    	/* 使用 attr() 函数读取 data-placeholder 属性的值作为内容 */
+    	content: attr(data-placeholder);
+
+    	/* 设置占位符的样式，使其看起来像提示文字 */
+    	color: #aaa;
+    	/* 灰色字体 */
+    	font-style: italic;
+    	/* 可以使用斜体 */
+
+    	/* 关键：阻止伪元素捕获鼠标事件，这样用户才能点击并聚焦到空的 div 上 */
+    	pointer-events: none;
+    }
+
+    /* ====具体块===== */
+
+    /* ================================
+            编辑器容器
+            ================================ */
+    #editor-container {
+    	max-width: 980px;
+    	margin: 4px auto;
+    	background: var(--bg);
+    	border-radius: 12px;
+    	position: relative;
+    	padding: 8px;
+    	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    	min-height: 100vh;
+    	/* 最小高度为视口高度 */
+    	box-sizing: border-box;
+    	/* 包含 padding 在内计算高度 */
+    }
+
+    #editor {
+    	min-height: 300px;
+    }
+
+    #statebar {
+    	min-height: 300px;
+    }
+
+    a {
+    	color: var(--hi);
+    }
+
+    /* 标题1 */
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+    	display: block;
+    	max-width: 980px;
+    	margin: 0px auto;
+    	background: var(--bg);
+    	border-radius: 12px;
+    	padding: 8px 80px;
+    	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    }
+
+    .filename {
+    	display: block;
+    	max-width: 980px;
+    	margin: 0px auto;
+    	background: var(--bg);
+    	border-radius: 12px;
+    	padding: 8px 8px;
+    }
+
+    .statebar {
+    	display: block;
+    	font-size: 14px;
+    	max-width: 980px;
+    	margin: 0px auto;
+    	background: var(--bg);
+    	border-radius: 12px;
+    	padding: 8px 8px;
+    }
+
+    /* ================================
+            块级元素 (block)
+            ================================ */
+
+    /* 所有block内边距统一,上下宽度4x */
+    .block {
+    	position: relative;
+    	padding: 0px 0px;
+    	display: flex;
+    	/* 主轴设置为列 */
+    	flex-direction: column;
+    	gap: 4px;
+    }
+
+    /* .block.dragging {
+        opacity: 0.6;
+        background: #eef6ff;
+      } */
+
+    .block[draggable="true"] {
+    	-webkit-user-drag: element;
+    	/* CSS 确保它在 Chrome/Safari 中能正确被拖拽。 */
+    }
+
+    /* ================================
+            块内容 + 拖拽手柄
+            ================================ */
+
+    /* 折叠 (details/summary) */
+    details {
+    	width: 100%;
+    }
+
+    summary {
+    	flex: 1;
+    	position: block;
+    	padding: 4px 0px;
+    	display: flex;
+    	align-items: flex-start;
+    	width: 100%;
+    	box-sizing: border-box;
+    	gap: 0px;
+    	cursor: pointer;
+    	outline: none;
+    }
+
+    summary::-webkit-details-marker {
+    	display: none;
+    	/* 隐藏默认三角图标 */
+    }
+
+    .toggle-btn {
+    	padding: 0;
+    	border: 0;
+    	margin: 0;
+    	color: var(--hi2);
+    	transition: transform 0.12s;
+    	align-items: flex-start;
+    	background: transparent;
+    }
+
+    .block[data-type="pre"]>details>summary>.toggle-btn {
+    	color: #ffffff;
+    }
+
+    .toggle-btn.open {
+    	transform: rotate(90deg);
+    	/* 旋转 90 度或者你想要的角度 */
+    }
+
+    .list-block-ul>details>summary .toggle-btn,
+    .list-block-ol>details>summary .toggle-btn,
+    .list-block-task>details>summary .toggle-btn {
+    	margin-left: 10px;
+    }
+
+    .block-content-wrapper {
+    	position: absolute;
+    	left: 0px;
+    	display: flex;
+    	gap: 4px;
+    	width: 100%;
+    	/* 从头开始 */
+    	align-items: flex-start;
+    	position: relative;
+    }
+
+    .block>.block-content-wrapper {
+    	padding: 0 0 0 20px;
+    }
+
+    /* 拖拽把手 */
+    .drag-handle {
+    	align-self: flex-start;
+    	width: 20px;
+    	height: 20px;
+    	display: flex;
+    	/* 主轴和交叉轴都为中心 */
+    	align-items: center;
+    	justify-content: center;
+    	color: var(--hi2);
+    	cursor: grab;
+    	opacity: 0;
+    	transition: opacity 0.2s;
+    }
+
+    .block-content-wrapper:hover .drag-handle {
+    	opacity: 1;
+    	/* hover 时显示拖拽手柄 */
+    }
+
+    .drag-handle:active {
+    	cursor: grabbing;
+    }
+
+    /* 标题序号 */
+    .heading-number {
+    	color: var(--hi2);
+    	align-self: flex-start;
+    }
+
+    /* 内容 */
+    .content {
+    	flex: 1;
+    	min-height: 18px;
+    	width: auto;
+    	padding: 0px;
+    	border-radius: 4px;
+    	outline: none;
+    	box-sizing: border-box;
+    	margin: 4px 0 4px 0;
+    }
+
+    /* 删除按钮 */
+    .delete-btn {
+    	order: 999;
+    	border: 0px;
+    	border-radius: 10px;
+    	width: 20px;
+    	height: 20px;
+    	font-size: 20px;
+    	background: var(--bg);
+    	margin-left: auto;
+    	/* 把它推到最右边 */
+    	margin-right: 10px;
+    	/* 把它推到最右边 */
+    	display: flex;
+    	/* 让按钮里的内容居中 */
+    	align-items: center;
+    	justify-content: center;
+    	color: var(--hi2);
+    	cursor: pointer;
+    	opacity: 0;
+    	transition: opacity 0.2s;
+    }
+
+    .block[data-type="li"]>.block-content-wrapper>.delete-btn,
+    .block[data-type="taskitem"]>.block-content-wrapper>.delete-btn {
+    	border-radius: 50%;
+    	background: var(--hi2);
+    	color: var(--hi2);
+    	width: 15px;
+    	height: 15px;
+    }
+
+    .block-content-wrapper:hover .delete-btn {
+    	opacity: 1;
+    	/* hover 时显示拖拽手柄 */
+    }
+
+    /* ================================
+            空容器可拖拽提示 (Fix for dropping)
+            ================================ */
+    .block-children:empty {
+    	min-height: 20px;
+    	/* 🚩给空容器一个高度，才能作为有效的 drop 目标 */
+    	padding: 4px 0;
+    	transition: background-color 0.2s ease;
+    }
+
+    /* 空容器 hover 时显示蓝色背景 */
+    .block:hover>details>.block-children:empty,
+    .block:hover>.block-children:empty {
+    	background: #eef6ff;
+    	border-radius: 4px;
+    }
+
+    /* ================================
+            列表块 (UL / OL / Task)
+            ================================ */
+    div[data-type="ul"],
+    div[data-type="ol"],
+    div[data-type="task"] {
+    	border-radius: 10px;
+    	background: rgba(168, 174, 190, 0.459);
+    }
+
+    div[data-type="ul"]>details>summary,
+    div[data-type="ol"]>details>summary,
+    div[data-type="task"]>details>summary,
+    div[data-type="pre"]>details>summary {
+    	color: var(--hi2);
+    	opacity: 1;
+    	border-radius: 10px;
+    }
+
+    /* 区分颜色 */
+    div[data-type="ul"]>details>summary {
+    	background: var(--hi3);
+    }
+
+    div[data-type="ol"]>details>summary {
+    	background: var(--hi1);
+    }
+
+    div[data-type="task"]>details>summary {
+    	background: var(--hi);
+    }
+
+    div[data-type="pre"]>details>summary {
+    	background: var(--hi2);
+    }
+
+    div[data-type="ul"]>details>summary::before {
+    	content: "📑";
+    	display: inline-block;
+    	background: var(--hi1);
+    	padding: 2px 4px;
+    	background: transparent;
+
+    }
+
+    div[data-type="ol"]>details>summary::before {
+    	content: "🔢";
+    	display: inline-block;
+    	background: transparent;
+
+    }
+
+    div[data-type="task"]>details>summary::before {
+    	content: "✅";
+    	display: inline-block;
+    	background: transparent;
+
+    }
+
+    div[data-type="pre"]>details>summary::before {
+    	content: "💻";
+    	display: inline-block;
+    	background: transparent;
+
+    }
+
+    /* #heading-7-1755659624403 > details > div > div:nth-child(1) > details > summary */
+
+
+
+    /* 隐藏 drag-handle 的默认颜色 */
+    .block.list-block-ul .drag-handle,
+    .block.list-block-ol .drag-handle,
+    .block.list-block-task .drag-handle {
+    	color: #ffffff;
+    }
+
+    /* 子块容器 */
+    .block-children {
+    	margin-left: 0px;
+    	padding-left: 0px;
+    	border-left: 0px solid #f0f0f0;
+    }
+
+    /* 列表内嵌样式 */
+    ul.block-children,
+    ol.block-children {
+    	margin: 0;
+    	padding-left: 28px;
+    }
+
+    ul.block-children li.block,
+    ol.block-children li.block {
+    	margin: 4px 0;
+    }
+
+    li.block {
+    	list-style: inherit;
+    }
+
+    /* ================================
+            任务列表 (checkbox)
+            ================================ */
+    .task-checkbox {
+    	margin-right: 8px;
+    	transform: translateY(2px);
+    }
+
+    /* ================================
+            表格 (table)
+            ================================ */
+    .table-block table {
+    	width: 100%;
+    	border-collapse: collapse;
+    	margin: 8px 0;
+    }
+
+    .table-block th,
+    .table-block td {
+    	border: 1px solid #eaeaea;
+    	padding: 8px;
+    	min-width: 100px;
+    }
+
+    .table-controls {
+    	margin-top: 6px;
+    	display: flex;
+    	gap: 8px;
+    }
+
+    /* ================================
+            代码块 (pre + toolbar)
+            ================================ */
+    .pre-block pre {
+    	background: #1e1e2d;
+    	color: #e6e6e6;
+    	padding: 12px;
+    	border-radius: 6px;
+    	overflow: auto;
+    	font-family: "Fira Code", monospace;
+    	font-size: 0.9rem;
+    }
+
+    code[contenteditable]:focus {
+    	outline: none;
+    	caret-color: rgb(132, 230, 3);
+    }
+
+    .code-toolbar {
+    	flex: 1;
+    	margin-left: auto;
+    	display: flex;
+    	gap: 8px;
+    	align-items: center;
+    	justify-content: flex-end;
+    	opacity: 0;
+    	transition: opacity 0.12s;
+    }
+
+    .block:hover .code-toolbar {
+    	opacity: 1;
+    	/* hover 时显示代码工具栏 */
+    }
+
+    /* ================================
+            图片块
+            ================================ */
+    img {
+    	max-width: 100%;
+    	border-radius: 6px;
+    	margin-top: 6px;
+    }
+
+    /* ====工具栏样式===== */
+
+    /* ================================
+      添加菜单 (浮动弹出)
+      ================================ */
+    .add-menu {
+    	position: fixed;
+    	background: #fff;
+    	border: 1px solid var(--text2);
+    	border-radius: 8px;
+    	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    	padding: 6px;
+    	z-index: 1200;
+    	width: 220px;
+    }
+
+    .add-menu button {
+    	display: block;
+    	width: 100%;
+    	text-align: left;
+    	padding: 8px;
+    	border-radius: 6px;
+    	border: none;
+    	background: none;
+    	cursor: pointer;
+    }
+
+    .add-menu button:hover {
+    	background: #f5f7fb;
+    }
+
+    /* 拖拽位置指示线 */
+    .drop-indicator {
+    	height: 3px;
+    	background: var(--hi1);
+    	margin: -2px 0;
+    	border-radius: 3px;
+    }
+
+    /* ================================
+      浮动工具栏 (文字工具等)
+      ================================ */
+    #floating-toolbar {
+    	position: absolute;
+    	display: none;
+    	background: #222;
+    	color: #fff;
+    	padding: 6px;
+    	border-radius: 8px;
+    	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    	z-index: 1300;
+    	display: flex;
+    	gap: 6px;
+    	align-items: center;
+    }
+
+    #floating-toolbar button {
+    	background: none;
+    	border: none;
+    	color: #fff;
+    	padding: 6px 8px;
+    	cursor: pointer;
+    	border-radius: 6px;
+    	position: relative;
+    }
+
+    /* 颜色选择器 */
+    #color-palette {
+    	position: absolute;
+    	bottom: 100%;
+    	left: 50%;
+    	transform: translateX(-50%);
+    	background: #333;
+    	border-radius: 6px;
+    	padding: 8px;
+    	display: none;
+    	/* 默认隐藏 */
+    	/* 每列多少个 */
+    	grid-template-columns: repeat(9, 1fr);
+    	gap: 6px;
+    	margin-bottom: 8px;
+    	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    #color-palette.visible {
+    	display: grid;
+    }
+
+    .color-swatch {
+    	width: 24px;
+    	height: 24px;
+    	border: 1px solid rgba(255, 255, 255, 0.2);
+    	border-radius: 50%;
+    	cursor: pointer;
+    	transition: transform 0.1s;
+    }
+
+    .color-swatch:hover {
+    	transform: scale(1.1);
+    	border-color: #fff;
+    }
+
+    /* ================================
+      FAB (浮动操作按钮)
+      ================================ */
+    #fab-container {
+    	position: fixed;
+    	right: 18px;
+    	bottom: 18px;
+    	z-index: 2000;
+    	display: flex;
+    	flex-direction: column-reverse;
+    	align-items: flex-end;
+    	gap: 12px;
+    }
+
+    #fab {
+    	position: relative;
+    	right: auto;
+    	bottom: auto;
+    	display: flex;
+    	flex-direction: column;
+    	align-items: flex-end;
+    	gap: 8px;
+    }
+
+    #fab-main {
+    	width: 56px;
+    	height: 56px;
+    	border-radius: 50%;
+    	background: var(--hi1);
+    	color: var(--text);
+    	border: none;
+    	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    	cursor: pointer;
+    	font-size: 24px;
+    }
+
+    .fab-item {
+    	width: 100px;
+    	margin: 4px 0;
+    	padding: 8px 12px;
+    	border-radius: 8px;
+    	background: var(--hi1);
+    	color: var(--text);
+    	border: 1px solid var(--hi);
+    	cursor: pointer;
+    }
+
+    .fab-item:hover {
+    	background: var(--hi2);
+    }
+
+    /* ================================
+      TOC (目录浮动按钮)
+      ================================ */
+    #toc-fab {
+    	position: relative;
+    }
+
+    #toc-button {
+    	width: 56px;
+    	height: 56px;
+    	border-radius: 50%;
+    	background: var(--hi1);
+    	color: var(--text);
+    	border: none;
+    	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    	cursor: pointer;
+    	font-size: 24px;
+    	display: flex;
+    	align-items: center;
+    	justify-content: center;
+    }
+
+    #toc-panel {
+    	position: absolute;
+    	bottom: 0;
+    	right: 64px;
+    	width: 280px;
+    	max-height: 400px;
+    	overflow-y: auto;
+    	background: var(--hi);
+    	border-radius: 8px;
+    	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    	padding: 8px;
+    	opacity: 0;
+    	visibility: hidden;
+    	transform: translateX(10px);
+    	transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
+    	pointer-events: none;
+    	/* 默认不可交互 */
+    }
+
+    #toc-panel.is-visible {
+    	opacity: 1;
+    	visibility: visible;
+    	transform: translateX(0);
+    	pointer-events: auto;
+    	/* 显示时可交互 */
+    }
+
+    #toc-panel ul {
+    	list-style: none;
+    	padding-left: 0;
+    	margin: 0;
+    }
+
+    #toc-panel li a {
+    	display: block;
+    	padding: 6px 10px;
+    	text-decoration: none;
+    	color: var(--text);
+    	border-radius: 4px;
+    	white-space: nowrap;
+    	overflow: hidden;
+    	text-overflow: ellipsis;
+    }
+
+    #toc-panel li a:hover {
+    	background: var(--hi1);
+    }
+
+    #toc-panel .toc-level-1 {
+    	padding-left: 0px;
+    }
+
+    #toc-panel .toc-level-2 {
+    	padding-left: 15px;
+    }
+
+    #toc-panel .toc-level-3 {
+    	padding-left: 30px;
+    }
+
+    #toc-panel .toc-level-4 {
+    	padding-left: 45px;
+    }
+
+    #toc-panel .toc-level-5 {
+    	padding-left: 60px;
+    }
+
+    #toc-panel .toc-level-6 {
+    	padding-left: 75px;
+    }

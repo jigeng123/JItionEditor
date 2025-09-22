@@ -1,193 +1,171 @@
 import * as vscode from 'vscode';
-import { getNonce } from './util';
+import { html as beautifyHtml } from 'js-beautify';
 
 
 export class JitionEditorProvider implements vscode.CustomTextEditorProvider {
 
 	public static register(context: vscode.ExtensionContext): vscode.Disposable {
 		const provider = new JitionEditorProvider(context);
-		const providerRegistration = vscode.window.registerCustomEditorProvider(JitionEditorProvider.viewType, provider);
+		const providerRegistration = vscode.window.registerCustomEditorProvider(
+			JitionEditorProvider.viewType, 
+			provider,      
+			{
+			// JIGENG 切换窗口不会隐藏
+        	webviewOptions: { retainContextWhenHidden: true },
+      		});
 		return providerRegistration;
 	}
 
 	private static readonly viewType = 'Jition';
 
-	private static readonly scratchCharacters = ['😸', '😹', '😺', '😻', '😼', '😽', '😾', '🙀', '😿', '🐱'];
-
 	constructor(
 		private readonly context: vscode.ExtensionContext
 	) { }
 
-	/**
-	 * Called when our custom editor is opened.
-	 * 
-	 * 
-	 */
+//JIGENG 当编辑器加载的时候
 	public async resolveCustomTextEditor(
 		document: vscode.TextDocument,
 		webviewPanel: vscode.WebviewPanel,
 		_token: vscode.CancellationToken
 	): Promise<void> {
-		// Setup initial content for the webview
+		// JIGENG 设置初始化webview的html
 		webviewPanel.webview.options = {
 			enableScripts: true,
 		};
-		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
-
+		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview,document.fileName);
+//JIGENG 发送update message给webview,附带文件内容
 		function updateWebview() {
 			webviewPanel.webview.postMessage({
 				type: 'update',
 				text: document.getText(),
 			});
 		}
-
-		// Hook up event handlers so that we can synchronize the webview with the text document.
-		//
-		// The text document acts as our model, so we have to sync change in the document to our
-		// editor and sync changes in the editor back to the document.
-		// 
-		// Remember that a single text document can also be shared between multiple custom
-		// editors (this happens for example when you split a custom editor)
-
-		const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
-			if (e.document.uri.toString() === document.uri.toString()) {
-				updateWebview();
-			}
-		});
-
-		// Make sure we get rid of the listener when our editor is closed.
-		webviewPanel.onDidDispose(() => {
-			changeDocumentSubscription.dispose();
-		});
-
-		// Receive message from the webview.
+//JIGENG 接受message from webview
 		webviewPanel.webview.onDidReceiveMessage(e => {
 			switch (e.type) {
-				case 'add':
-					this.addNewScratch(document);
-					return;
-
-				case 'delete':
-					this.deleteScratch(document, e.id);
-					return;
+				case 'save':
+					this.updateTextDocument(document,e.text);
+					//保存完发送已保存
+					webviewPanel.webview.postMessage({
+					type: 'saved',
+					});
+					return;	
 			}
 		});
-
+//JIGENG 关闭webview的时候执行，将一些后台的东西销毁
+		webviewPanel.onDidDispose(() => {
+		});
+//JIGENG初始化时更新一次
 		updateWebview();
 	}
 
-	/**
-	 * Get the static html used for the editor webviews.
-	 */
-	private getHtmlForWebview(webview: vscode.Webview): string {
-		// Local path to script and css for the webview
+// JIGENG html内容
+	private getHtmlForWebview(webview: vscode.Webview,fileName:string): string {
+		// 加在本地css+js
+		const filebasename =  fileName.split("\\").pop() || fileName; 
 		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
-			this.context.extensionUri, 'media', 'catScratch.js'));
+			this.context.extensionUri, 'media','main.js'));
+					const HTMLtoPDFscriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
+			this.context.extensionUri, 'media', 'outjs','html2pdf.bundle.min.js'));
+					const MDITscriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
+			this.context.extensionUri, 'media', 'outjs','markdown-it.min.js'));
+					const TURNMDscriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
+			this.context.extensionUri, 'media', 'outjs','turndown.min.js'));
+		const JitonscriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
+			this.context.extensionUri, 'media', 'jition.js'));
 
-		const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(
-			this.context.extensionUri, 'media', 'reset.css'));
+		const MystyleUri = webview.asWebviewUri(vscode.Uri.joinPath(
+			this.context.extensionUri, 'media', 'jition.css'));
 
-		const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(
-			this.context.extensionUri, 'media', 'vscode.css'));
-
-		const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(
-			this.context.extensionUri, 'media', 'catScratch.css'));
-
-		// Use a nonce to whitelist which scripts can be run
-		const nonce = getNonce();
 
 		return /* html */`
 			<!DOCTYPE html>
 			<html lang="en">
 			<head>
 				<meta charset="UTF-8">
+				    <link
+					href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css"
+					rel="stylesheet"
+					/>
+					<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+					<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+					
 
-				<!--
-				Use a content security policy to only allow loading images from https or from our extension directory,
-				and only allow scripts that have a specific nonce.
-				-->
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
-
-				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-				<link href="${styleResetUri}" rel="stylesheet" />
-				<link href="${styleVSCodeUri}" rel="stylesheet" />
-				<link href="${styleMainUri}" rel="stylesheet" />
-
-				<title>Cat Scratch</title>
+				<link href="${MystyleUri}" rel="stylesheet" />
+				<script  src="${HTMLtoPDFscriptUri}"></script>
+				<script  src="${MDITscriptUri}"></script>
+				<script  src="${TURNMDscriptUri}"></script>
+				<title>Jition</title>
 			</head>
 			<body>
-				<div class="notes">
-					<div class="add-button">
-						<button>Scratch!</button>
-					</div>
-				</div>
-				
-				<script nonce="${nonce}" src="${scriptUri}"></script>
+			</div>
+			<h1 class="filename">${filebasename}</h1>
+			<div id="editor-container">
+			<div id="editor"><h1>初始化失败,重新加载</h1></div>
+			<div id="statebar"></div>
+			</div>
+    <!-- 💡💡💡💡💡工具栏💡💡💡💡💡 -->
+    <!-- 🎨字体样式窗口 -->
+    <div id="floating-toolbar">
+      <button id="bold-btn" title="Bold"><b>B</b></button>
+      <button id="italic-btn" title="Italic"><i>I</i></button>
+      <button id="underline-btn" title="Underline"><u>U</u></button>
+      <div
+        style="
+          width: 1px;
+          height: 18px;
+          background: rgba(255, 255, 255, 0.12);
+          margin: 0 6px;
+        "
+      ></div>
+      <button id="link-btn" title="Link">🔗</button>
+      <button id="color-btn" title="Color">
+        🎨
+        <div id="color-palette"></div>
+      </button>
+      <button id="clear-format-btn" title="Clear">Tx</button>
+    </div>
+    <!-- 🔨右下角工具栏 -->
+    <div id="fab-container">
+      <div aria-hidden="false" id="fab">
+        <button id="fab-main" title="工具">+</button>
+        <div
+          id="fab-menu"
+          style="display: none; flex-direction: column; align-items: flex-end"
+        >
+          <button class="fab-item" id="fab-clear">清空本地</button>
+          <button class="fab-item" id="fab-fold">折叠</button>
+          <button class="fab-item" id="fab-import">导入 MD</button>
+          <button class="fab-item" id="fab-export-md">导出 MD</button>
+          <button class="fab-item" id="fab-export-pdf">导出 PDF</button>
+          <button class="fab-item" id="fab-clean-all">清空页面</button>
+        </div>
+      </div>
+      <div id="toc-fab">
+        <button id="toc-button" title="目录">☰</button>
+        <div id="toc-panel">
+          <ul id="toc-list"></ul>
+        </div>
+      </div>
+    </div>
+				<script  src="${JitonscriptUri}"></script>
+				<script  src="${scriptUri}"></script>
 			</body>
 			</html>`;
 	}
-
-	/**
-	 * Add a new scratch to the current document.
-	 */
-	private addNewScratch(document: vscode.TextDocument) {
-		const json = this.getDocumentAsJson(document);
-		const character = JitionEditorProvider.scratchCharacters[Math.floor(Math.random() * JitionEditorProvider.scratchCharacters.length)];
-		json.scratches = [
-			...(Array.isArray(json.scratches) ? json.scratches : []),
-			{
-				id: getNonce(),
-				text: character,
-				created: Date.now(),
-			}
-		];
-
-		return this.updateTextDocument(document, json);
-	}
-
-	/**
-	 * Delete an existing scratch from a document.
-	 */
-	private deleteScratch(document: vscode.TextDocument, id: string) {
-		const json = this.getDocumentAsJson(document);
-		if (!Array.isArray(json.scratches)) {
-			return;
-		}
-
-		json.scratches = json.scratches.filter((note: any) => note.id !== id);
-
-		return this.updateTextDocument(document, json);
-	}
-
-	/**
-	 * Try to get a current document as json text.
-	 */
-	private getDocumentAsJson(document: vscode.TextDocument): any {
-		const text = document.getText();
-		if (text.trim().length === 0) {
-			return {};
-		}
-
-		try {
-			return JSON.parse(text);
-		} catch {
-			throw new Error('Could not get document as json. Content is not valid json');
-		}
-	}
-
-	/**
-	 * Write out the json to a given document.
-	 */
-	private updateTextDocument(document: vscode.TextDocument, json: any) {
+//JIGENG 更新文件内容
+	private updateTextDocument(document: vscode.TextDocument, text: any) {
 		const edit = new vscode.WorkspaceEdit();
-
-		// Just replace the entire document every time for this example extension.
-		// A more complete extension should compute minimal edits instead.
+		const prettyHtml = beautifyHtml(text, {
+                indent_size: 2,
+                wrap_line_length: 80,
+                end_with_newline: true,
+            });
+		// TODO 这里直接覆盖源文件，可以优化
 		edit.replace(
 			document.uri,
 			new vscode.Range(0, 0, document.lineCount, 0),
-			JSON.stringify(json, null, 2));
+			prettyHtml);
 
 		return vscode.workspace.applyEdit(edit);
 	}

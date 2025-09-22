@@ -1,0 +1,2761 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width,initial-scale=1" name="viewport" />
+    <title>JIgeng文本编辑器</title>
+    <!-- Prism.js (代码高亮) -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <!-- html2pdf (前端 PDF 导出) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
+    <!-- markdown-it + turndown -->
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it/dist/markdown-it.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/turndown/dist/turndown.min.js"></script>
+    <!-- 全局控制.css -->
+    <style>
+      /* ====🎨 全局变量定义 (主题颜色等)===== */
+      /* 每个区块颜色,有三种,重中浅,以便使用 */
+      /* 背景色 */
+      :root {
+        --bg: #191919;
+        --bg1: #525252;
+        --bg2: #b5b5b5;
+      }
+      /* 文字 (与背景相反)*/
+      :root {
+        --text: #fcfcfc;
+        --text1: #5a5a5a;
+        --text2: #272727;
+      }
+      /* 高亮色 */
+      :root {
+        --hi: #d43ba1;
+        --hi1: #6942b1;
+        --hi2: #8bff3d;
+      }
+
+      /* box的尺寸,以边缘box为准,以免外扩导致不必要的计算 */
+      * {
+        box-sizing: border-box;
+      }
+
+      /* 如果有跳转,会平滑滚动 */
+      html {
+        scroll-behavior: smooth;
+      }
+    </style>
+    <!-- body -->
+    <style>
+      /* 整体的字体,margin外边距,border边缘,padding内边距,背景,文字颜色 */
+      /* 边距接受四个值(顺时针,上右下左),两个值为上下/左右,一个值为四周所有 */
+      body {
+        font-family: system-ui;
+        margin: 0px;
+        background: var(--hi);
+        color: var(--text);
+      }
+      .block:hover:not(:has(.block:hover)) {
+        box-shadow: 0 0 0 1.5px rgba(149, 255, 92, 0.6);
+        border-radius: 10px;
+        transition: box-shadow 0.2s ease;
+      }
+
+      /* 编辑状态 */
+      .block .content:focus {
+        box-shadow: 0 0 0 1.5px rgba(85, 184, 255, 0.8);
+        border-radius: 4px;
+        transition: box-shadow 0.2s ease;
+      }
+      /*
+ * 核心样式：为内容为空的 contenteditable 元素显示占位符
+ */
+      [contenteditable="true"]:empty::before {
+        /* 使用 attr() 函数读取 data-placeholder 属性的值作为内容 */
+        content: attr(data-placeholder);
+
+        /* 设置占位符的样式，使其看起来像提示文字 */
+        color: #aaa; /* 灰色字体 */
+        font-style: italic; /* 可以使用斜体 */
+
+        /* 关键：阻止伪元素捕获鼠标事件，这样用户才能点击并聚焦到空的 div 上 */
+        pointer-events: none;
+      }
+    </style>
+    <!-- 具体块 -->
+    <style>
+                /* ================================
+                      编辑器容器
+                      ================================ */
+                #editor-container {
+                  max-width: 980px;
+                  margin: 8px auto;
+                  background: var(--bg);
+                  border-radius: 12px;
+                  padding: 8px;
+                  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+                }
+
+                #editor {
+                  min-height: 300px;
+                }
+
+                a {
+                  color: var(--hi);
+                }
+
+                /* 标题1 */
+                h1,
+                h2,
+                h3,
+                h4,
+                h5,
+                h6 {
+                  display: block;
+                  max-width: 980px;
+                  margin: 0px auto;
+                  background: var(--bg);
+                  border-radius: 12px;
+                  padding: 8px 80px;
+                  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+                }
+
+                /* ================================
+                      块级元素 (block)
+                      ================================ */
+
+                /* 所有block内边距统一,上下宽度4x */
+                .block {
+                  position: relative;
+                  padding: 4px 0px;
+                  display: flex;
+                  /* 主轴设置为列 */
+                  flex-direction: column;
+                  gap: 4px;
+                }
+
+                /* .block.dragging {
+                  opacity: 0.6;
+                  background: #eef6ff;
+                } */
+
+                .block[draggable="true"] {
+                  -webkit-user-drag: element; /* CSS 确保它在 Chrome/Safari 中能正确被拖拽。 */
+                }
+
+                /* ================================
+                      块内容 + 拖拽手柄
+                      ================================ */
+
+                /* 折叠 (details/summary) */
+                details {
+                  width: 100%;
+                }
+
+                summary {
+                  flex: 1;
+                  position: block;
+                  padding: 4px 0px;
+                  display: flex;
+                  align-items: flex-start;
+                  width: 100%;
+                  box-sizing: border-box;
+                  gap: 0px;
+                  cursor: pointer;
+                  outline: none;
+                }
+
+                summary::-webkit-details-marker {
+                  display: none; /* 隐藏默认三角图标 */
+                }
+
+                summary::before {
+                  content: "▶";
+                  height: 18px;
+                  width: 18px;
+                  color: var(--hi2);
+                  transition: transform 0.12s;
+                  align-items: flex-start;
+                  opacity: 0.5;
+                  border-radius: 5px;
+                }
+
+                details[open] > summary::before {
+                  transform: rotate(90deg); /* 展开时旋转箭头 */
+                }
+                .block-content-wrapper {
+                  position: absolute;
+                  left: 0px;
+                  display: flex;
+                  gap: 4px;
+                  width: 100%;
+                  /* 从头开始 */
+                  align-items: flex-start;
+                  position: relative;
+                }
+
+                .block > .block-content-wrapper {
+                  padding: 0 0 0 20px;
+                }
+                /* 拖拽把手 */
+                .drag-handle {
+                  align-self: flex-start;
+                  width: 20px;
+                  height: 20px;
+                  display: flex;
+                  /* 主轴和交叉轴都为中心 */
+                  align-items: center;
+                  justify-content: center;
+                  color: var(--hi2);
+                  cursor: grab;
+                  opacity: 0;
+                  transition: opacity 0.2s;
+                }
+
+                .block-content-wrapper:hover .drag-handle {
+                  opacity: 1; /* hover 时显示拖拽手柄 */
+                }
+
+                .drag-handle:active {
+                  cursor: grabbing;
+                }
+
+                /* 标题序号 */
+                .heading-number {
+                  color: var(--hi2);
+                  align-self: flex-start;
+                }
+                /* 内容 */
+                .content {
+                  flex: 1;
+                  min-height: 18px;
+                  width: auto;
+                  padding: 0px;
+                  border-radius: 4px;
+                  outline: none;
+                  box-sizing: border-box;
+                  margin: 0;
+                }
+                /* 删除按钮 */
+                .delete-btn {
+                  order: 999;
+                  border: 0px;
+                  border-radius:10px;
+                  width: 20px;
+                  height: 20px;
+                  font-size:20px;
+                  background: var(--bg);
+                  margin-left: auto; /* 把它推到最右边 */
+                  margin-right: 10px; /* 把它推到最右边 */
+                  display: flex; /* 让按钮里的内容居中 */
+                  align-items: center;
+                  justify-content: center;
+                  color: var(--hi2);
+                  cursor: pointer;
+                  opacity: 0;
+                  transition: opacity 0.2s;
+                }
+                .block[data-type="li"] > .block-content-wrapper > .delete-btn,
+                .block[data-type="taskitem"] > .block-content-wrapper > .delete-btn {
+                  border-radius: 50%;
+                  background: var(--hi2);
+                  color: var(--hi2);
+                  width: 15px;
+                  height: 15px;
+                }
+                .block-content-wrapper:hover .delete-btn {
+                  opacity: 1; /* hover 时显示拖拽手柄 */
+                }
+
+                /* ================================
+                      空容器可拖拽提示 (Fix for dropping)
+                      ================================ */
+                .block-children:empty {
+                  min-height: 20px; /* 🚩给空容器一个高度，才能作为有效的 drop 目标 */
+                  padding: 4px 0;
+                  transition: background-color 0.2s ease;
+                }
+
+                /* 空容器 hover 时显示蓝色背景 */
+                .block:hover > details > .block-children:empty,
+                .block:hover > .block-children:empty {
+                  background: #eef6ff;
+                  border-radius: 4px;
+                }
+
+                /* ================================
+                      列表块 (UL / OL / Task)
+                      ================================ */
+                /* 折叠图标 */
+             	div[data-type="ul"],
+            	div[data-type="ol"],
+            	div[data-type="task"]{
+            border-radius: 10px;
+            	background: rgba(168, 174, 190, 0.459);
+            		}
+                div[data-type="ul"] > details > summary::before,
+                div[data-type="ol"] > details > summary::before,
+                div[data-type="task"] > details > summary::before,
+                div[data-type="pre"] > details > summary::before {
+                  content: "🟠"; /* 或者空字符串 "" 也行 */
+                  margin:0 10px;
+                  color: var(--hi2);
+                  transition: transform 0.3s ease;
+                  opacity: 1;
+                }
+                div[data-type="ul"] > details[open] > summary::before,
+                div[data-type="ol"] > details[open] > summary::before,
+                div[data-type="task"] > details[open] > summary::before,
+                div[data-type="pre"] > details[open] > summary::before {
+                  content: "🟧"; /* 或者空字符串 "" 也行 */
+                  transform: rotate(360deg); /* 展开时旋转箭头 */
+                  transform-origin: center center; /* 默认，绕中心旋转 */
+                }
+
+                div[data-type="ul"] > details > summary,
+                div[data-type="ol"] > details > summary,
+                div[data-type="task"] > details > summary,
+                div[data-type="pre"] > details > summary {
+                  /* margin-left: 10px; /* 把它推到最右边 */ */
+                  color: var(--hi2);
+                  opacity: 1;
+                  border-radius:10px;
+                }
+                /* 区分颜色 */
+                div[data-type="ul"] > details > summary{background:var(--hi1);}
+                div[data-type="ol"] > details > summary{background:var(--hi1);}
+                div[data-type="task"] > details > summary{background:var(--hi);}
+                div[data-type="pre"] > details > summary{background:var(--hi2);}
+      		  div[data-type="ul"] > details > summary::before {
+          content: "📑";
+          display: inline-block;
+          background: var(--hi1);
+          padding: 2px 4px;
+          background: transparent;
+
+      }
+      div[data-type="ol"] > details > summary::before {
+          content: "🔢";
+          display: inline-block;
+          background: transparent;
+
+      }
+      div[data-type="task"] > details > summary::before {
+          content: "✅";
+          display: inline-block;
+          background: transparent;
+
+      }
+      div[data-type="pre"] > details > summary::before {
+          content: "💻";
+          display: inline-block;
+          background: transparent;
+
+      }
+
+                /* #heading-7-1755659624403 > details > div > div:nth-child(1) > details > summary */
+
+                .block.list-block-ul .drag-handle::before,
+                .block.list-block-ol .drag-handle::before,
+                .block.list-block-task .drag-handle::before {
+                  font-size: 20px;
+                  font-weight: bold;
+                }
+
+                .block.list-block-ul .drag-handle {
+                  font-size: 14px;
+                }
+
+                .block.list-block-ul .drag-handle::before {
+                  content: "●";
+                  color: #666;
+                }
+
+                /* 隐藏 drag-handle 的默认颜色 */
+                .block.list-block-ul .drag-handle,
+                .block.list-block-ol .drag-handle,
+                .block.list-block-task .drag-handle {
+                  color: transparent;
+                }
+
+                /* 子块容器 */
+                .block-children {
+                  margin-left: 0px;
+                  padding-left: 0px;
+                  border-left: 0px solid #f0f0f0;
+                }
+
+                /* 列表内嵌样式 */
+                ul.block-children,
+                ol.block-children {
+                  margin: 0;
+                  padding-left: 28px;
+                }
+
+                ul.block-children li.block,
+                ol.block-children li.block {
+                  margin: 4px 0;
+                }
+
+                li.block {
+                  list-style: inherit;
+                }
+
+                /* ================================
+                      任务列表 (checkbox)
+                      ================================ */
+                .task-checkbox {
+                  margin-right: 8px;
+                  transform: translateY(2px);
+                }
+
+                /* ================================
+                      表格 (table)
+                      ================================ */
+                .table-block table {
+                  width: 100%;
+                  border-collapse: collapse;
+                  margin: 8px 0;
+                }
+
+                .table-block th,
+                .table-block td {
+                  border: 1px solid #eaeaea;
+                  padding: 8px;
+                  min-width: 100px;
+                }
+
+                .table-controls {
+                  margin-top: 6px;
+                  display: flex;
+                  gap: 8px;
+                }
+
+                /* ================================
+                      代码块 (pre + toolbar)
+                      ================================ */
+                .pre-block pre {
+                  background: #1e1e2d;
+                  color: #e6e6e6;
+                  padding: 12px;
+                  border-radius: 6px;
+                  overflow: auto;
+                  font-family: "Fira Code", monospace;
+                  font-size: 0.9rem;
+                }
+
+                .code-toolbar {
+                  flex: 1;
+                  margin-left: auto;
+                  display: flex;
+                  gap: 8px;
+                  align-items: center;
+                  justify-content: flex-end;
+                  opacity: 0;
+                  transition: opacity 0.12s;
+                }
+
+                .block:hover .code-toolbar {
+                  opacity: 1; /* hover 时显示代码工具栏 */
+                }
+
+                /* ================================
+                      图片块
+                      ================================ */
+                img {
+                  max-width: 100%;
+                  border-radius: 6px;
+                  margin-top: 6px;
+                }
+    </style>
+    <!-- 工具栏样式 -->
+    <style>
+      /* ================================
+      添加菜单 (浮动弹出)
+      ================================ */
+      .add-menu {
+        position: fixed;
+        background: #fff;
+        border: 1px solid var(--text2);
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        padding: 6px;
+        z-index: 1200;
+        width: 220px;
+      }
+
+      .add-menu button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 8px;
+        border-radius: 6px;
+        border: none;
+        background: none;
+        cursor: pointer;
+      }
+
+      .add-menu button:hover {
+        background: #f5f7fb;
+      }
+
+      /* 拖拽位置指示线 */
+      .drop-indicator {
+        height: 3px;
+        background: var(--hi1);
+        margin: -2px 0;
+        border-radius: 3px;
+      }
+
+      /* ================================
+      浮动工具栏 (文字工具等)
+      ================================ */
+      #floating-toolbar {
+        position: absolute;
+        display: none;
+        background: #222;
+        color: #fff;
+        padding: 6px;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        z-index: 1300;
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+
+      #floating-toolbar button {
+        background: none;
+        border: none;
+        color: #fff;
+        padding: 6px 8px;
+        cursor: pointer;
+        border-radius: 6px;
+        position: relative;
+      }
+
+      /* 颜色选择器 */
+      #color-palette {
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #333;
+        border-radius: 6px;
+        padding: 8px;
+        display: none; /* 默认隐藏 */
+        /* 每列多少个 */
+        grid-template-columns: repeat(9, 1fr);
+        gap: 6px;
+        margin-bottom: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+
+      #color-palette.visible {
+        display: grid;
+      }
+
+      .color-swatch {
+        width: 24px;
+        height: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        cursor: pointer;
+        transition: transform 0.1s;
+      }
+
+      .color-swatch:hover {
+        transform: scale(1.1);
+        border-color: #fff;
+      }
+
+      /* ================================
+      FAB (浮动操作按钮)
+      ================================ */
+      #fab-container {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 2000;
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: flex-end;
+        gap: 12px;
+      }
+
+      #fab {
+        position: relative;
+        right: auto;
+        bottom: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+      }
+
+      #fab-main {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--hi1);
+        color: var(--text);
+        border: none;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+        font-size: 24px;
+      }
+
+      .fab-item {
+        width: 100px;
+        margin: 4px 0;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: var(--hi1);
+        color: var(--text);
+        border: 1px solid var(--hi);
+        cursor: pointer;
+      }
+
+      .fab-item:hover {
+        background: var(--hi2);
+      }
+
+      /* ================================
+      TOC (目录浮动按钮)
+      ================================ */
+      #toc-fab {
+        position: relative;
+      }
+
+      #toc-button {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--hi1);
+        color: var(--text);
+        border: none;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+        font-size: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #toc-panel {
+        position: absolute;
+        bottom: 0;
+        right: 64px;
+        width: 280px;
+        max-height: 400px;
+        overflow-y: auto;
+        background: var(--hi);
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        padding: 8px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateX(10px);
+        transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
+        pointer-events: none; /* 默认不可交互 */
+      }
+
+      #toc-panel.is-visible {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(0);
+        pointer-events: auto; /* 显示时可交互 */
+      }
+
+      #toc-panel ul {
+        list-style: none;
+        padding-left: 0;
+        margin: 0;
+      }
+
+      #toc-panel li a {
+        display: block;
+        padding: 6px 10px;
+        text-decoration: none;
+        color: var(--text);
+        border-radius: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      #toc-panel li a:hover {
+        background: var(--hi1);
+      }
+
+      #toc-panel .toc-level-1 {
+        padding-left: 0px;
+      }
+      #toc-panel .toc-level-2 {
+        padding-left: 15px;
+      }
+      #toc-panel .toc-level-3 {
+        padding-left: 30px;
+      }
+      #toc-panel .toc-level-4 {
+        padding-left: 45px;
+      }
+      #toc-panel .toc-level-5 {
+        padding-left: 60px;
+      }
+      #toc-panel .toc-level-6 {
+        padding-left: 75px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 contenteditable="true">🤪JI_tion🤪</h1>
+    <div id="editor-container">
+      <div id="editor"></div>
+    </div>
+    <!-- 💡💡💡💡💡工具栏💡💡💡💡💡 -->
+    <!-- 🎨字体样式窗口 -->
+    <div id="floating-toolbar">
+      <button id="bold-btn" title="Bold"><b>B</b></button>
+      <button id="italic-btn" title="Italic"><i>I</i></button>
+      <button id="underline-btn" title="Underline"><u>U</u></button>
+      <div
+        style="
+          width: 1px;
+          height: 18px;
+          background: rgba(255, 255, 255, 0.12);
+          margin: 0 6px;
+        "
+      ></div>
+      <button id="link-btn" title="Link">🔗</button>
+      <button id="color-btn" title="Color">
+        🎨
+        <div id="color-palette"></div>
+      </button>
+      <button id="clear-format-btn" title="Clear">Tx</button>
+    </div>
+    <!-- 🔨右下角工具栏 -->
+    <div id="fab-container">
+      <div aria-hidden="false" id="fab">
+        <button id="fab-main" title="工具">+</button>
+        <div
+          id="fab-menu"
+          style="display: none; flex-direction: column; align-items: flex-end"
+        >
+          <button class="fab-item" id="fab-clear">清空本地</button>
+          <button class="fab-item" id="fab-fold">折叠</button>
+          <button class="fab-item" id="fab-import">导入 MD</button>
+          <button class="fab-item" id="fab-export-md">导出 MD</button>
+          <button class="fab-item" id="fab-export-pdf">导出 PDF</button>
+          <button class="fab-item" id="fab-clean-all">清空页面</button>
+          <button class="fab-item" id="fab-save">保存网页</button>
+        </div>
+      </div>
+      <div id="toc-fab">
+        <button id="toc-button" title="目录">☰</button>
+        <div id="toc-panel">
+          <ul id="toc-list"></ul>
+        </div>
+      </div>
+    </div>
+    <!-- 全局变量构建 -->
+    <script>
+      const editor = document.getElementById("editor");
+      const editorContainer = document.getElementById("editor-container");
+      const floatingToolbar = document.getElementById("floating-toolbar");
+
+      const colorBtn = document.getElementById("color-btn");
+      const colorPalette = document.getElementById("color-palette");
+
+      const BLOCK_TYPES = {
+        p: { tag: "p", placeholder: "段落", container: false },
+        heading: {
+          tag: "h2",
+          placeholder: "标题 ",
+          container: true,
+          isToggle: true,
+        },
+        blockquote: {
+          tag: "blockquote",
+          placeholder: "引用",
+          container: false,
+        },
+        ul: {
+          tag: "ul",
+          placeholder: "无序列表",
+          container: true,
+          isList: true,
+          defaultChild: "li",
+          isToggle: true,
+        },
+        ol: {
+          tag: "ol",
+          placeholder: "有序列表",
+          container: true,
+          isList: true,
+          defaultChild: "li",
+          isToggle: true,
+        },
+        li: { tag: "li", placeholder: "列表项", container: false },
+        task: {
+          tag: "ul",
+          placeholder: "任务列表",
+          container: true,
+          isTask: true,
+          defaultChild: "li",
+          isToggle: true,
+        },
+        taskitem: {
+          tag: "li",
+          placeholder: "任务项",
+          container: false,
+          isTaskItem: true,
+        },
+        table: {
+          tag: "div",
+          isTable: true,
+          placeholder: "表格",
+          container: false,
+        },
+        pre: {
+          tag: "div",
+          hasCode: true,
+          isToggle: true,
+          placeholder: "代码块 ",
+          container: true,
+        },
+        img: {
+          tag: "div",
+          isImage: true,
+          placeholder: "图片",
+          container: false,
+        },
+      };
+
+      const CODE_LANGS = {
+        javascript: "JavaScript",
+        python: "Python",
+        html: "HTML",
+        css: "CSS",
+        bash: "Bash",
+        plaintext: "Plain Text",
+      };
+      const PALETTE_COLORS = [
+        // 黑白灰
+        "#000000",
+        "#222222",
+        "#444444",
+        "#666666",
+        "#888888",
+        "#999999",
+        "#bbbbbb",
+        "#cccccc",
+        "#eeeeee",
+        "#ffffff",
+
+        // 红橙黄
+        "#ff4d4f",
+        "#ff7875",
+        "#ffa39e",
+        "#ffc069",
+        "#ff9c6e",
+        "#faad14",
+        "#ffd666",
+        "#ffe58f",
+
+        // 绿
+        "#52c41a",
+        "#73d13d",
+        "#95de64",
+        "#b7eb8f",
+        "#d9f7be",
+
+        // 蓝
+        "#1890ff",
+        "#40a9ff",
+        "#69c0ff",
+        "#91d5ff",
+        "#bae7ff",
+
+        // 紫
+        "#722ed1",
+        "#9254de",
+        "#b37feb",
+        "#d3adf7",
+        "#efdbff",
+
+        // 粉
+        "#eb2f96",
+        "#f759ab",
+        "#ff85c0",
+        "#ffadd2",
+        "#ffd6e7",
+
+        // 棕/暖灰
+        "#a0522d",
+        "#c08050",
+        "#d9a066",
+        "#e6c3a0",
+        "#f0e0d9",
+
+        // 青绿
+        "#13c2c2",
+        "#36cfc9",
+        "#5cdbd3",
+        "#87e8de",
+        "#b5f5ec",
+      ];
+
+      const cmdMenuState = {
+        active: false,
+        element: null,
+        selectedIndex: 0,
+        triggerBlock: null,
+        triggerRect: null,
+      };
+
+      const HISTORY_LIMIT = 120;
+      let history = [],
+        historyIndex = -1,
+        historyLock = false;
+      // 从 URL 获取文件名
+      const FILE_NAME = decodeURIComponent(
+        location.pathname.split("/").pop() || "document.html"
+      );
+
+      // 生成安全的 localStorage key
+      const LOCAL_STORAGE_KEY =
+        "editorContent_" + FILE_NAME.replace(/[\\\/:*?"<>|]/g, "_");
+      // 防止闪烁跳动
+      const debounce = (fn, wait = 300) => {
+        let t;
+        return (...a) => {
+          clearTimeout(t);
+          t = setTimeout(() => fn(...a), wait);
+        };
+      };
+      function downloadFile(filename, text, mime = "text/plain") {
+        // 创建一个 Blob 对象，里面装的是要保存的文本
+        const blob = new Blob([text], { type: mime });
+
+        // 创建一个 <a> 标签
+        const a = document.createElement("a");
+
+        // 把 Blob 对象转换成临时的文件 URL，赋值给 <a> 的 href
+        a.href = URL.createObjectURL(blob);
+
+        // 设置下载下来的文件名
+        a.download = filename;
+
+        // 模拟点击 <a>，触发浏览器下载
+        a.click();
+
+        // 3 秒后释放掉临时的 URL，避免内存泄漏
+        setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+      }
+
+      async function fileToDataURL(file) {
+        return await new Promise((res, rej) => {
+          const fr = new FileReader();
+          fr.onload = () => res(fr.result);
+          fr.onerror = rej;
+          fr.readAsDataURL(file);
+        });
+      }
+    </script>
+    <!-- 添加块 -->
+    <script>
+      /*
+将 createBlock 重构为多个小函数，便于理解与测试。
+假设全局存在：BLOCK_TYPES, CODE_LANGS, Prism(高亮), debounce, saveEditorState, updateAllHeadingNumbers
+*/
+
+      // --- helpers 工具函数 -----------------------------------------------------
+      // 创建拖拽手柄
+      function createDragHandle() {
+        const handle = document.createElement("div");
+        handle.className = "drag-handle";
+        handle.innerText = "⠿";
+        return handle;
+      }
+
+      // 创建删除按钮（可传入提示文字和点击回调）
+      function createDeleteBtn({ title = "删除此块", onClick }) {
+        const del = document.createElement("button");
+        del.className = "delete-btn";
+        del.innerText = "×";
+        del.title = title;
+        del.addEventListener("click", (e) => {
+          e.stopPropagation(); // 阻止事件冒泡，避免触发父节点点击
+          if (typeof onClick === "function") onClick();
+        });
+        return del;
+      }
+
+      // 创建通用的可编辑内容元素
+      function makeContentElement(
+        tag = "div",
+        type = "p",
+        html = "",
+        placeholder = ""
+      ) {
+        const el = document.createElement(tag);
+        el.className = "content";
+        el.setAttribute("contenteditable", "true"); // 可编辑
+        el.dataset.type = type; // 数据属性存储类型
+        el.innerHTML = html || "";
+        if (placeholder) el.dataset.placeholder = placeholder;
+        // 输入事件触发保存（防抖处理）
+        el.addEventListener(
+          "input",
+          debounce(() => saveEditorState(), 300)
+        );
+        return el;
+      }
+
+      // 为块绑定可拖拽功能
+      function armDraggable(el) {
+        const handle = el.querySelector(".drag-handle");
+        if (handle) {
+          handle.addEventListener(
+            "mousedown",
+            () => (el.dataset._armed = "true")
+          );
+          document.addEventListener("mouseup", () => delete el.dataset._armed, {
+            capture: true,
+          });
+        }
+      }
+
+      // --- 具体类型的 block 构建函数 --------------------------------------------
+      // 段落类 block
+      function block_p(
+        type,
+        content,
+        options,
+        def,
+        parentForContent,
+        parentForChildren
+      ) {
+        const tag = def.tag || "div";
+        const el = makeContentElement(
+          tag,
+          type,
+          options.content || content || "",
+          def.placeholder || ""
+        );
+        parentForContent.appendChild(el);
+        return el;
+      }
+
+      // 通用列表项构建函数（供无序/有序/任务列表复用）
+      function _createListItemBase(type, content, options) {
+        const li = document.createElement("li");
+        li.className = "block";
+        li.dataset.type = type;
+        li.setAttribute("draggable", "true");
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "block-content-wrapper";
+        const handle = createDragHandle();
+        wrapper.appendChild(handle);
+
+        // 任务项增加复选框
+        if (type === "taskitem") {
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.className = "task-checkbox";
+          checkbox.checked = options.checked === true;
+          wrapper.appendChild(checkbox);
+        }
+        // 无序/有序列表项增加圆点
+        if (type === "li") {
+          const bullet = document.createElement("span");
+          bullet.className = "list-bullet";
+          bullet.textContent = "•"; // 圆点
+          wrapper.appendChild(bullet);
+        }
+
+        // 列表项的内容区域
+        const contentEl = document.createElement("div");
+        contentEl.className = "content";
+        contentEl.setAttribute("contenteditable", "true");
+        contentEl.dataset.type = type;
+        contentEl.innerHTML = options.content || content || "";
+        contentEl.dataset.placeholder =
+          (BLOCK_TYPES[type] && BLOCK_TYPES[type].placeholder) || "";
+
+        wrapper.appendChild(contentEl);
+        li.appendChild(wrapper);
+
+        // 删除按钮
+        const del = createDeleteBtn({
+          title: "删除此项",
+          onClick: () => {
+            li.remove();
+            saveEditorState();
+          },
+        });
+        wrapper.appendChild(del);
+
+        // 输入事件保存
+        contentEl.addEventListener(
+          "input",
+          debounce(() => saveEditorState(), 300)
+        );
+        // 拖拽处理
+        handle.addEventListener(
+          "mousedown",
+          () => (li.dataset._armed = "true")
+        );
+        document.addEventListener("mouseup", () => delete li.dataset._armed, {
+          capture: true,
+        });
+
+        return li;
+      }
+
+      // 三种列表类型都复用 _createListItemBase
+      function block_list_task(type, content, options) {
+        return _createListItemBase(type, content, options);
+      }
+      function block_list_ul(type, content, options) {
+        return _createListItemBase(type, content, options);
+      }
+      function block_list_ol(type, content, options) {
+        return _createListItemBase(type, content, options);
+      }
+
+      // 引用块
+      function block_blockquote(type, content, options, def, parentForContent) {
+        const tag = def.tag || "blockquote";
+        const el = makeContentElement(
+          tag,
+          type,
+          options.content || content || "",
+          def.placeholder || ""
+        );
+        parentForContent.appendChild(el);
+        return el;
+      }
+
+      // 图片块
+      function block_img(type, content, options, parentForContent) {
+        const imgWrap = document.createElement("div");
+        imgWrap.className = "img-block";
+        const img = document.createElement("img");
+        img.src =
+          options.src ||
+          content ||
+          "https://via.placeholder.com/600x120.png?text=Image";
+        img.alt = options.alt || "image";
+        imgWrap.appendChild(img);
+        parentForContent.appendChild(imgWrap);
+        return imgWrap;
+      }
+
+      // 标题块
+      function block_heading(type, content, options, parentForContent) {
+        const level = options.level || 2;
+        const tag = `h${level}`;
+        const el = makeContentElement(
+          tag,
+          type,
+          options.content || content || "",
+          (BLOCK_TYPES[type] && BLOCK_TYPES[type].placeholder) || ""
+        );
+        el.dataset.level = level;
+
+        const num = document.createElement("span");
+        num.className = "heading-number";
+        parentForContent.insertBefore(
+          num,
+          parentForContent.querySelector(".drag-handle").nextSibling
+        );
+        parentForContent.appendChild(el);
+        return el;
+      }
+
+      // 代码块
+      function block_pre(
+        type,
+        content,
+        options,
+        parentForChildren,
+        parentForContent,
+        summary
+      ) {
+        const pre = document.createElement("pre");
+        const code = document.createElement("code");
+        const lang = options.lang || "javascript";
+        code.className = "language-" + lang;
+        code.setAttribute("contenteditable", "true");
+        code.textContent = options.content || content || "1111";
+        pre.appendChild(code);
+
+        // 工具栏（语言选择、复制按钮）
+        const toolbar = document.createElement("div");
+        toolbar.className = "code-toolbar";
+        const sel = document.createElement("select");
+        for (const k in CODE_LANGS) sel.add(new Option(CODE_LANGS[k], k));
+        sel.value = lang;
+        sel.addEventListener("change", () => {
+          code.className = "language-" + sel.value;
+          if (parentForChildren && parentForChildren.dataset)
+            parentForChildren.dataset.lang = sel.value;
+          Prism.highlightElement(code);
+          saveEditorState();
+        });
+        const copyBtn = document.createElement("button");
+        copyBtn.textContent = "Copy";
+        copyBtn.addEventListener("click", () => {
+          navigator.clipboard.writeText(code.textContent);
+          copyBtn.textContent = "Copied";
+          setTimeout(() => (copyBtn.textContent = "Copy"), 1200);
+        });
+        toolbar.appendChild(sel);
+        toolbar.appendChild(copyBtn);
+
+        // 工具栏插入位置：toggle 块时放到 summary，否则放到 parentForContent
+        if (summary) summary.appendChild(toolbar);
+        else if (parentForContent) parentForContent.appendChild(toolbar);
+
+        if (parentForChildren) parentForChildren.appendChild(pre);
+        if (parentForChildren && parentForChildren.dataset)
+          parentForChildren.dataset.lang = lang;
+
+        // 输入事件时高亮+保存
+        code.addEventListener(
+          "input",
+          debounce(() => {
+            Prism.highlightElement(code);
+            saveEditorState();
+          }, 300)
+        );
+
+        return pre;
+      }
+
+      // 表格块
+      function block_table(type, content, options, block) {
+        const tbWrap = document.createElement("div");
+        tbWrap.className = "table-block";
+        const table = document.createElement("table");
+        table.innerHTML =
+          options.tableContent ||
+          `<thead><tr><th contenteditable="true"></th></tr></thead><tbody><tr><td contenteditable="true"></td></tr></tbody>`;
+        tbWrap.appendChild(table);
+        block.appendChild(tbWrap);
+        const controls = document.createElement("div");
+        controls.className = "table-controls";
+        controls.innerHTML = `<button class="add-row">添加行</button><button class="add-col">添加列</button><button class="del-row">删除行</button><button class="del-col">删除列</button>`;
+        block.appendChild(controls);
+        return tbWrap;
+      }
+
+      // --- 主工厂函数 ----------------------------------------------------------
+      function createBlock(type = "p", content = "", options = {}) {
+        const def = BLOCK_TYPES[type];
+        if (!def) return null; // 未定义的类型直接返回 null
+
+        // 列表项（li 或 taskitem）单独返回 <li>
+        if (type === "li" || type === "taskitem") {
+          return _createListItemBase(type, content, options);
+        }
+
+        const block = document.createElement("div");
+        block.className = "block";
+        block.dataset.type = type;
+        block.setAttribute("draggable", "true");
+
+        // 根据类型添加样式标记
+        if (def.isList && type === "ul") block.classList.add("list-block-ul");
+        if (def.isList && type === "ol") block.classList.add("list-block-ol");
+        if (def.isTask && type === "task")
+          block.classList.add("list-block-task");
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "block-content-wrapper";
+        const handle = createDragHandle();
+
+        let details, summary, parentForContent, parentForChildren;
+        const isToggle = !!def.isToggle;
+
+        // toggle 块使用 <details>/<summary> 包裹
+        if (isToggle) {
+          block.classList.add("details-block");
+          details = document.createElement("details");
+          details.open = options.openState !== false;
+          summary = document.createElement("summary");
+
+          wrapper.appendChild(handle);
+          summary.appendChild(wrapper);
+          details.appendChild(summary);
+          block.appendChild(details);
+
+          parentForContent = wrapper;
+          parentForChildren = details;
+        } else {
+          wrapper.appendChild(handle);
+          block.appendChild(wrapper);
+          parentForContent = wrapper;
+          parentForChildren = block;
+        }
+
+        // 删除按钮（删除时更新标题序号并保存）
+        const del = createDeleteBtn({
+          title: "删除此块",
+          onClick: () => {
+            block.remove();
+            updateAllHeadingNumbers();
+            saveEditorState();
+          },
+        });
+
+        // 根据不同类型调用具体构建函数
+        if (def.hasCode) {
+          block.classList.add("pre-block");
+          block_pre(
+            type,
+            content,
+            options,
+            parentForChildren,
+            parentForContent,
+            summary
+          );
+        } else if (def.isImage) {
+          block_img(type, content, options, parentForContent);
+        } else if (def.isTable) {
+          block_table(type, content, options, block);
+        } else if (!def.isList && !def.isTask) {
+          if (type === "heading") {
+            block_heading(type, content, options, parentForContent);
+          } else if (type === "blockquote") {
+            block_blockquote(type, content, options, def, parentForContent);
+          } else {
+            block_p(
+              type,
+              content,
+              options,
+              def,
+              parentForContent,
+              parentForChildren
+            );
+          }
+        }
+
+        // 容器类 block（可包含子块）
+        if (def.container) {
+          let containerEl;
+          if (def.isList || def.isTask)
+            containerEl = document.createElement(def.tag);
+          else containerEl = document.createElement("div");
+          containerEl.className = "block-children";
+          parentForChildren.appendChild(containerEl);
+
+          // 递归创建子块
+          if (Array.isArray(options.children)) {
+            options.children.forEach((ch) => {
+              const childNode = createBlock(ch.type, ch.content || "", ch);
+              if (childNode) containerEl.appendChild(childNode);
+            });
+          }
+        }
+
+        wrapper.appendChild(del);
+        armDraggable(block);
+
+        return block;
+      }
+
+      // 将部分方法暴露到全局（便于外部调用）
+      window.EditorBlockFactory = {
+        createBlock,
+        createDragHandle,
+        createDeleteBtn,
+        block_p,
+        block_list_task,
+        block_list_ul,
+        block_list_ol,
+        block_blockquote,
+        block_img,
+        block_heading,
+        block_pre,
+        block_table,
+      };
+
+      /*
+说明：
+- 此重构保持了原有 DOM 结构和事件绑定，但将职责拆分为更小的函数。
+- 一些全局依赖（BLOCK_TYPES, CODE_LANGS, Prism, debounce, saveEditorState, updateAllHeadingNumbers）需要外部提供。
+- 可以进一步拆分为 ES 模块，或增加 TypeScript 类型、Jest 单元测试。
+*/
+    </script>
+    <!-- 添加快-菜单 -->
+    <script>
+      function createAddMenu(
+        parentContainer,
+        beforeElement = null,
+        isCmd = false,
+        e = null
+      ) {
+        closeAllMenus();
+        const menu = document.createElement("div");
+        menu.className = "add-menu";
+        const types = [
+          "p",
+          "heading",
+          "blockquote",
+          "ul",
+          "ol",
+          "task",
+          "table",
+          "pre",
+          "img",
+        ];
+        types.forEach((t) => {
+          const btn = document.createElement("button");
+          btn.textContent = BLOCK_TYPES[t].placeholder || t;
+          btn.addEventListener("click", async (ev) => {
+            ev.stopPropagation();
+            let nb = createBlock(
+              t,
+              "",
+              t === "img"
+                ? { src: "https://via.placeholder.com/600x120.png" }
+                : {}
+            );
+
+            if (BLOCK_TYPES[t].isList || BLOCK_TYPES[t].isTask) {
+              const firstItem = createBlock(BLOCK_TYPES[t].defaultChild, "");
+              nb.querySelector(".block-children").appendChild(firstItem);
+            }
+
+            if (isCmd && cmdMenuState.triggerBlock) {
+              cmdMenuState.triggerBlock.insertAdjacentElement("afterend", nb);
+            } else {
+              parentContainer.insertBefore(nb, beforeElement);
+            }
+
+            if (t === "img") {
+              const url = prompt(
+                "图片 URL（留空取消）",
+                "https://via.placeholder.com/600x120.png"
+              );
+              if (url) {
+                nb.querySelector("img").src = url;
+              } else {
+                nb.remove();
+                menu.remove();
+                closeAllMenus();
+                return;
+              }
+            }
+
+            setTimeout(() => {
+              const focusTarget = nb.querySelector(".content, code, td, img");
+              if (focusTarget && focusTarget.focus) focusTarget.focus();
+            }, 20);
+
+            updateAllHeadingNumbers();
+            saveEditorState();
+            menu.remove();
+            closeAllMenus();
+          });
+          menu.appendChild(btn);
+        });
+        menu.addEventListener("mousedown", (e) => e.stopPropagation());
+        menu.addEventListener("click", (e) => e.stopPropagation());
+        document.body.appendChild(menu);
+
+        if (isCmd && cmdMenuState.triggerRect) {
+          menu.style.left = `${cmdMenuState.triggerRect.left}px`;
+          menu.style.top = `${cmdMenuState.triggerRect.bottom + 6}px`;
+          cmdMenuState.active = true;
+          cmdMenuState.element = menu;
+          cmdMenuState.selectedIndex = 0;
+          updateCmdMenuSelection();
+        } else if (e) {
+          menu.style.left = `${e.clientX + 4}px`;
+          menu.style.top = `${e.clientY + 4}px`;
+        } else {
+          const rect = beforeElement
+            ? beforeElement.getBoundingClientRect()
+            : parentContainer.getBoundingClientRect();
+          const topPos = beforeElement ? rect.top : rect.bottom;
+          menu.style.left = `${rect.left + 12}px`;
+          menu.style.top = `${topPos}px`;
+        }
+        return menu;
+      }
+
+      function closeAllMenus() {
+        document.querySelectorAll(".add-menu").forEach((m) => m.remove());
+        if (cmdMenuState.active) {
+          cmdMenuState.active = false;
+          cmdMenuState.element = null;
+          cmdMenuState.triggerBlock = null;
+          cmdMenuState.triggerRect = null;
+          cmdMenuState.selectedIndex = 0;
+        }
+      }
+      function updateCmdMenuSelection() {
+        if (!cmdMenuState.active || !cmdMenuState.element) return;
+        const opts = cmdMenuState.element.querySelectorAll("button");
+        opts.forEach(
+          (o, i) =>
+            (o.style.background =
+              i === cmdMenuState.selectedIndex ? "#eef" : "")
+        );
+      }
+    </script>
+    <!-- 拖拽块功能 -->
+    <script>
+      //拖拽功能
+      // 全局变量
+      // 用于存储当前正在拖动的块元素（.block）。
+      // 拖动开始时赋值，拖动结束后清空。
+      let draggedItem = null;
+      // 拖拽开始
+      // e.target.closest(".block")：找到触发拖动事件的 .block 父元素。
+      // 条件 dataset._armed === "true"：才能被拖动（防止误拖）。
+      // draggedItem = targetBlock：记录拖动的元素。
+      // setTimeout(function, delay);setTimeout异步执行的函数,class添加dragging,0秒后执行
+      // 避免阻塞拖动事件触发。
+      // 如果元素父级没有block，调用 e.preventDefault() 阻止拖动。
+      editor.addEventListener("dragstart", (e) => {
+        const targetBlock = e.target.closest(".block");
+        if (targetBlock && targetBlock.dataset._armed === "true") {
+          draggedItem = targetBlock;
+          setTimeout(() => draggedItem.classList.add("dragging"), 0);
+        } else {
+          if (targetBlock) e.preventDefault();
+        }
+      });
+      // 拖动结束：dragend
+      // 移除 dragging 样式
+      // 清空 draggedItem
+      // 删除页面中所有的临时 drop-indicator（拖放指示线）
+      // 保存编辑器状态 saveEditorState()
+      // 更新标题编号 updateAllHeadingNumbers()
+      editor.addEventListener("dragend", () => {
+        if (draggedItem) {
+          draggedItem.classList.remove("dragging");
+          draggedItem = null;
+          document
+            .querySelectorAll(".drop-indicator")
+            .forEach((i) => i.remove());
+          saveEditorState();
+          updateAllHeadingNumbers();
+        }
+      });
+      // dragover(拖动中) ，浏览器默认不允许 drop，要 e.preventDefault()
+      // 删除已有的 drop-indicator
+      // dropZone：当前鼠标所在可放置区域（.block-children 或 #editor）
+      editor.addEventListener("dragover", (e) => {
+        e.preventDefault(); //允许 drop
+        document.querySelectorAll(".drop-indicator").forEach((i) => i.remove());
+        // 判断拖放是否合法：
+        const dropZone = e.target.closest(".block-children, #editor");
+        if (!dropZone || !draggedItem || draggedItem.contains(dropZone)) return;
+        //设置特殊拖拽区域,ul和ol列表项
+        //如果是列表项区域,但不是列表元素,直接返回
+        //如果不是列表区域,是列表项,但不是editor直接返回
+        const isListDropZone =
+          dropZone.tagName === "UL" || dropZone.tagName === "OL";
+        const isListItem =
+          draggedItem.dataset.type === "li" ||
+          draggedItem.dataset.type === "taskitem";
+        if (isListDropZone && !isListItem) return;
+        if (!isListDropZone && isListItem && dropZone.id !== "editor") return;
+        // getDragAfterElement() 计算鼠标位置应该插入的位置
+        const after = getDragAfterElement(dropZone, e.clientY);
+        if (dropZone.children.length === 0 || after == null) {
+          dropZone.appendChild(draggedItem);
+        } else {
+          dropZone.insertBefore(draggedItem, after);
+        }
+        const ind = document.createElement("div");
+        // 创建一个 drop-indicator（提示线）显示拖放位置
+        ind.className = "drop-indicator";
+        if (after == null) dropZone.appendChild(ind);
+        else dropZone.insertBefore(ind, after);
+      });
+      // drop放下元素
+      // 如果拖入的是 图片文件：
+      // 用 fileToDataURL() 转成 Base64
+      // 创建一个新的 img block
+      // 插入到 dropZone 中对应位置
+      // 否则拖动 已有块
+      // 同样用 getDragAfterElement() 确定位置插入
+      // 更新标题编号并保存状态
+      editor.addEventListener("drop", async (e) => {
+        if (
+          // 文件拖入图片处理
+          e.dataTransfer &&
+          e.dataTransfer.files &&
+          e.dataTransfer.files.length
+        ) {
+          const files = Array.from(e.dataTransfer.files);
+          const images = files.filter(
+            (f) => f.type && f.type.startsWith("image/")
+          );
+          if (images.length) {
+            e.preventDefault();
+            const dropZone = e.target.closest(".block-children, #editor");
+            const after = getDragAfterElement(dropZone, e.clientY);
+            for (const imgFile of images) {
+              const dataUrl = await fileToDataURL(imgFile);
+              const imgBlock = createBlock("img", "", { src: dataUrl });
+              if (after == null) dropZone.appendChild(imgBlock);
+              else dropZone.insertBefore(imgBlock, after);
+            }
+            saveEditorState();
+            return;
+          }
+        }
+        // 普通拖放块逻辑
+        e.preventDefault();
+        document.querySelectorAll(".drop-indicator").forEach((i) => i.remove());
+        const dropZone = e.target.closest(".block-children, #editor");
+        if (!dropZone || !draggedItem || draggedItem.contains(dropZone)) return;
+        const isListDropZone =
+          dropZone.tagName === "UL" || dropZone.tagName === "OL";
+        const isListItem =
+          draggedItem.dataset.type === "li" ||
+          draggedItem.dataset.type === "taskitem";
+        if (isListDropZone && !isListItem) return;
+        if (!isListDropZone && isListItem && dropZone.id !== "editor") return;
+        const after = getDragAfterElement(dropZone, e.clientY);
+        if (after == null) dropZone.appendChild(draggedItem);
+        else dropZone.insertBefore(draggedItem, after);
+        updateAllHeadingNumbers();
+        saveEditorState();
+      });
+      // 作用：根据鼠标 y 坐标，找出拖动时应该插入在 哪个元素前面
+      //container：拖动区域的容器,y为鼠标垂直位置
+      // 排除当前正在拖动的元素（dragging）
+      // 用 reduce 找出距离鼠标最近的元素
+      function getDragAfterElement(container, y) {
+        const children = [
+          //找到container内所有block,[]转换为列表
+          ...container.querySelectorAll(":scope > .block, :scope > li.block"),
+        ].filter((el) => !el.classList.contains("dragging"));
+        //排除class中有dragging的(当前拖拽元素)
+        return children.reduce(
+          (closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset)
+              return { offset, element: child };
+            return closest;
+          },
+          { offset: Number.NEGATIVE_INFINITY }
+        ).element;
+      }
+    </script>
+    <!-- 富文本编辑功能 -->
+    <script>
+      //富文本功能
+      let currentRange = null; // 存储用户选择的文本范围
+      editorContainer.addEventListener("mouseup", () => {
+        setTimeout(() => {
+          // 延迟执行以确保浏览器正确获取选区
+          const sel = window.getSelection();
+          if (sel && !sel.isCollapsed && editor.contains(sel.anchorNode)) {
+            // ✅ 判断选中文本是否在指定元素内部,不生效
+            const invalidElements = editor.querySelectorAll("code, code span");
+            for (let el of invalidElements) {
+              if (el.contains(sel.anchorNode)) return;
+            }
+            // 保存选区
+            currentRange = sel.getRangeAt(0).cloneRange();
+            const rect = currentRange.getBoundingClientRect();
+            // 定位工具栏
+            floatingToolbar.style.left = `${
+              rect.left +
+              window.scrollX +
+              rect.width / 2 -
+              floatingToolbar.offsetWidth / 2
+            }px`;
+            floatingToolbar.style.top = `${
+              rect.top + window.scrollY - floatingToolbar.offsetHeight - 8
+            }px`;
+            floatingToolbar.style.display = "flex";
+          } else {
+            floatingToolbar.style.display = "none";
+            colorPalette.classList.remove("visible");
+          }
+        }, 10);
+      });
+      document.addEventListener("mousedown", (e) => {
+        // 判断点击是否在工具栏
+        if (!floatingToolbar.contains(e.target)) {
+          // 1️⃣ 清空选区
+          const sel = window.getSelection();
+          if (sel) sel.removeAllRanges();
+
+          // 2️⃣ 移除选中文本高亮（如果你是用 class 来高亮）
+          const highlighted = editorContainer.querySelectorAll(".highlight");
+          highlighted.forEach((el) => el.classList.remove("highlight"));
+
+          // 3️⃣ 隐藏浮动工具栏和颜色面板
+          floatingToolbar.style.display = "none";
+          colorPalette.classList.remove("visible");
+
+          // 重置 currentRange
+          currentRange = null;
+        }
+      });
+      function initColorPalette() {
+        PALETTE_COLORS.forEach((color) => {
+          const swatch = document.createElement("button");
+          swatch.className = "color-swatch";
+          swatch.style.backgroundColor = color;
+          swatch.dataset.color = color;
+          colorPalette.appendChild(swatch);
+        });
+      }
+      colorBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        colorPalette.classList.toggle("visible");
+      });
+      colorPalette.addEventListener("click", (e) => {
+        if (e.target.classList.contains("color-swatch")) {
+          e.stopPropagation();
+          const color = e.target.dataset.color;
+          applyFormat("foreColor", color);
+          colorPalette.classList.remove("visible");
+        }
+      });
+
+      function applyFormat(cmd, val = null) {
+        if (!currentRange) return;
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(currentRange);
+        document.execCommand(cmd, false, val);
+        floatingToolbar.style.display = "none";
+        currentRange = null;
+        saveEditorState();
+      }
+      document
+        .getElementById("bold-btn")
+        .addEventListener("click", () => applyFormat("bold"));
+      document
+        .getElementById("italic-btn")
+        .addEventListener("click", () => applyFormat("italic"));
+      document
+        .getElementById("underline-btn")
+        .addEventListener("click", () => applyFormat("underline"));
+      document
+        .getElementById("clear-format-btn")
+        .addEventListener("click", () => {
+          applyFormat("removeFormat");
+          applyFormat("unlink");
+        });
+      document.getElementById("link-btn").addEventListener("click", () => {
+        if (!currentRange) return;
+        const url = prompt("输入链接 URL:", "https://");
+        if (url) applyFormat("createLink", url);
+      });
+    </script>
+    <!-- 命令面板快捷键 -->
+    <script>
+      function detectBackticksAtCaret() {
+        const sel = window.getSelection();
+
+        if (!sel.isCollapsed || !sel.rangeCount) return false;
+
+        const range = sel.getRangeAt(0);
+
+        const node = range.startContainer;
+
+        const offset = range.startOffset;
+
+        if (node.nodeType !== Node.TEXT_NODE) return false;
+
+        const textBeforeCaret = node.textContent.substring(0, offset);
+        //endwith是光标,如果光标前是``,则触发工具面板
+        if (textBeforeCaret.endsWith("-=")) {
+          const contentEl = node.parentElement.closest(".content");
+
+          if (!contentEl) return false;
+
+          const block = contentEl.closest(".block, li.block");
+
+          if (!block) return false;
+
+          const newRange = document.createRange();
+
+          newRange.setStart(node, offset - 2);
+
+          newRange.setEnd(node, offset);
+
+          newRange.deleteContents();
+
+          const rect = range.getBoundingClientRect();
+
+          cmdMenuState.triggerBlock = block;
+
+          cmdMenuState.triggerRect = rect;
+
+          cmdMenuState.selectedIndex = 0;
+
+          const menu = createAddMenu(
+            block.parentElement,
+            block.nextElementSibling,
+            true
+          );
+
+          cmdMenuState.active = true;
+
+          cmdMenuState.element = menu;
+
+          updateCmdMenuSelection();
+
+          return true;
+        }
+        return false;
+      }
+      editor.addEventListener("input", (e) => {
+        detectBackticksAtCaret();
+      });
+    </script>
+    <!-- 快捷键 -->
+    <script>
+      // ✅ 功能总结：
+      // 撤销/重做
+      // Mac: Cmd+Z 撤销，Cmd+Shift+Z 重做
+      // Windows: Ctrl+Z 撤销，Ctrl+Y 重做
+      // 命令菜单快捷键
+      // ArrowDown/ArrowUp: 移动菜单高亮
+      // Enter: 执行选中菜单项
+      // Escape: 关闭菜单
+      // Shift+Enter 聚焦控制
+      // 在内容块内按 Shift+Enter 会取消焦点，而不是换行
+
+      // 监听全局按键事件
+      document.addEventListener("keydown", (e) => {
+        // 判断当前系统是否为 Mac
+        const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+
+        // 根据系统选择修饰键：Mac 用 metaKey（⌘），非 Mac 用 ctrlKey
+        const mod = isMac ? e.metaKey : e.ctrlKey;
+
+        // --- 撤销操作 Ctrl/Cmd + Z ---
+        if (mod && !e.shiftKey && e.key.toLowerCase() === "z") {
+          e.preventDefault(); // 阻止浏览器默认撤销行为
+          undo(); // 执行自定义撤销函数
+          return; // 退出监听
+        }
+
+        // --- 重做操作 Ctrl/Cmd + Shift + Z 或 Ctrl/Cmd + Y ---
+        if (
+          (mod && e.shiftKey && e.key.toLowerCase() === "z") || // Mac 常用 Cmd+Shift+Z
+          (mod && e.key.toLowerCase() === "y") // Windows 常用 Ctrl+Y
+        ) {
+          e.preventDefault(); // 阻止浏览器默认重做行为
+          redo(); // 执行自定义重做函数
+          return; // 退出监听
+        }
+
+        // --- 命令菜单导航 ---
+        // 当命令菜单处于激活状态且存在 DOM 元素
+        if (cmdMenuState.active && cmdMenuState.element) {
+          const opts = cmdMenuState.element.querySelectorAll("button"); // 获取所有菜单选项按钮
+          if (!opts.length) return; // 没有选项则返回
+
+          if (e.key === "ArrowDown") {
+            e.preventDefault(); // 阻止默认滚动
+            // 下移选中索引，循环回到第一项
+            cmdMenuState.selectedIndex =
+              (cmdMenuState.selectedIndex + 1) % opts.length;
+            updateCmdMenuSelection(); // 更新菜单高亮显示
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault(); // 阻止默认滚动
+            // 上移选中索引，循环回到最后一项
+            cmdMenuState.selectedIndex =
+              (cmdMenuState.selectedIndex - 1 + opts.length) % opts.length;
+            updateCmdMenuSelection(); // 更新菜单高亮显示
+          } else if (e.key === "Enter") {
+            e.preventDefault(); // 阻止默认换行
+            // 执行当前选中菜单项的点击事件
+            opts[cmdMenuState.selectedIndex].click();
+          } else if (e.key === "Escape") {
+            e.preventDefault(); // 阻止默认行为
+            closeAllMenus(); // 关闭所有菜单
+          }
+        }
+
+        // --- Shift + Enter 取消当前内容块焦点 ---
+        if (e.shiftKey && e.key === "Enter") {
+          const active = document.activeElement; // 获取当前聚焦元素
+          if (
+            active &&
+            active.classList && // 确保元素有 classList 属性
+            active.classList.contains("content") // 只处理 .content 块
+          ) {
+            active.blur(); // 移除焦点
+            e.preventDefault(); // 阻止默认换行
+          }
+        }
+      });
+    </script>
+    <!-- 粘贴 -->
+    <script>
+      editor.addEventListener("paste", async (e) => {
+        if (!e.clipboardData) return;
+        const items = Array.from(e.clipboardData.items || []);
+        const imageItem = items.find(
+          (it) => it.type && it.type.startsWith("image/")
+        );
+        if (imageItem) {
+          e.preventDefault();
+          const file = imageItem.getAsFile();
+          const dataUrl = await fileToDataURL(file);
+          const activeBlock =
+            document.activeElement.closest(".block") ||
+            document.activeElement.closest("li.block") ||
+            null;
+          const parent = activeBlock ? activeBlock.parentElement : editor;
+          const after = activeBlock ? activeBlock.nextElementSibling : null;
+          const imgBlock = createBlock("img", "", { src: dataUrl });
+          parent.insertBefore(imgBlock, after);
+          saveEditorState();
+        }
+      });
+    </script>
+    <!-- 添加块-菜单(双击) -->
+    <script>
+      // 整个容器监听双击事件
+      editorContainer.addEventListener("dblclick", (e) => {
+        const target = e.target;
+        // 如果双击的是可编辑块，以及他的父级是可编辑块，按钮，select，a，summary，drag-handle
+        // 直接返回
+        if (
+          target.isContentEditable ||
+          target.closest(
+            "[contenteditable], button, select, a, summary, .drag-handle"
+          )
+        )
+          return;
+        // 阻止浏览器默认行为，阻止冒泡，关闭所有菜单
+        e.preventDefault();
+        e.stopPropagation();
+        closeAllMenus();
+        //
+        let parent = editor;
+        let before = null;
+        const closest = target.closest(".block") || target.closest("li.block");
+        if (closest) {
+          const kids = closest.querySelector(".block-children");
+          if (kids && kids.contains(target)) {
+            parent = kids;
+            before = getDragAfterElement(kids, e.clientY);
+          } else if (kids) {
+            parent = kids;
+            before = null;
+          } else {
+            parent = closest.parentElement;
+            before = closest.nextElementSibling;
+          }
+        } else {
+          parent = editor;
+          before = getDragAfterElement(editor, e.clientY);
+        }
+        createAddMenu(parent, before, false, e);
+      });
+      //文档
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest(".add-menu")) {
+          closeAllMenus();
+        }
+      });
+      document.addEventListener("scroll", () => closeAllMenus(), true);
+    </script>
+    <!-- 表格(控制按钮事件) -->
+    <script>
+      editor.addEventListener("click", (e) => {
+        const t = e.target;
+        if (
+          t.classList.contains("add-row") ||
+          t.classList.contains("add-col") ||
+          t.classList.contains("del-row") ||
+          t.classList.contains("del-col")
+        ) {
+          const block = t.closest(".block");
+          if (!block) return;
+          const table = block.querySelector("table");
+          if (!table) return;
+          if (t.classList.contains("add-row")) {
+            const cols = table.querySelector("thead tr").cells.length;
+            const row = table.querySelector("tbody").insertRow();
+            for (let i = 0; i < cols; i++) {
+              const c = row.insertCell();
+              c.setAttribute("contenteditable", "true");
+              c.textContent = "";
+            }
+          } else if (t.classList.contains("add-col")) {
+            table.querySelectorAll("tr").forEach((r, idx) => {
+              const cell =
+                r.parentElement.tagName === "THEAD"
+                  ? document.createElement("th")
+                  : document.createElement("td");
+              cell.setAttribute("contenteditable", "true");
+              cell.textContent = "";
+              r.appendChild(cell);
+            });
+          } else if (t.classList.contains("del-row")) {
+            const tbody = table.querySelector("tbody");
+            if (tbody.rows.length > 1) tbody.deleteRow(-1);
+          } else if (t.classList.contains("del-col")) {
+            const colCount = table.querySelector("thead tr").cells.length;
+            if (colCount > 1)
+              table.querySelectorAll("tr").forEach((r) => r.deleteCell(-1));
+          }
+          saveEditorState();
+        }
+      });
+    </script>
+    <!-- 默认回车添加p段落 -->
+    <script>
+      let lastKeyWasEnter = false; // 记录上一次是否按下了 Enter
+      editor.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") {
+          lastKeyWasEnter = false; // 其他键就重置
+          return;
+        }
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+
+        const node = sel.anchorNode;
+        let contentEl =
+          node.nodeType === 3
+            ? node.parentElement.closest(".content")
+            : node.closest(".content");
+        if (!contentEl) return;
+
+        const type = contentEl.dataset.type;
+        // --- p / pre / heading / img / blockquote ---------------------------
+        if (["p", "pre", "heading", "img", "blockquote"].includes(type)) {
+          if (lastKeyWasEnter) {
+            // 第二次 Enter → 插入新段落
+            e.preventDefault();
+            // 把前一个块末尾的换行删除
+            contentEl.innerText = contentEl.innerText.replace(/\n$/, "");
+
+            const currentBlock = contentEl.closest(".block");
+            const newP = createBlock("p", "");
+
+            currentBlock.parentElement.insertBefore(
+              newP,
+              currentBlock.nextElementSibling
+            );
+
+            newP.querySelector(".content")?.focus();
+            saveEditorState();
+
+            lastKeyWasEnter = false; // 重置
+          } else {
+            // 第一次 Enter → 只是记录，不插入段落
+            lastKeyWasEnter = true;
+
+            // 可选：延时自动清零，避免用户很久以后再按 Enter 还被判定为双 Enter
+            setTimeout(() => {
+              lastKeyWasEnter = false;
+            }, 500); // 半秒有效窗口
+          }
+        }
+      });
+    </script>
+    <!-- 列表回车添加 -->
+    <script>
+      // ✅ 功能总结：
+      // 只在按下 Enter 且光标在列表项或任务项时触发。
+      // 空列表项按 Enter → 转为普通段落并删除空列表项，如果列表空则整个列表删除。
+      // 非空列表项按 Enter → 新增同类型列表项。
+      // 光标自动跳转到新块或新列表项。
+      // 保存编辑器状态。
+
+      // 给整个编辑器监听按键事件
+      editor.addEventListener("keydown", (e) => {
+        // 不是enter键就结束函数
+        if (e.key !== "Enter") return;
+
+        // 光标现在在哪里？选中了哪些文本？没有文本会返回 1（光标位置也算一个 Range）
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+
+        const node = sel.anchorNode; // 获取光标所在节点
+
+        // 获取可编辑内容块
+        // 如果光标在文本节点 (nodeType === 3)，则取父元素，再向上寻找最近的 .content 元素
+        // 否则直接在节点上寻找最近的 .content 元素
+        let contentEl =
+          node.nodeType === 3
+            ? node.parentElement.closest(".content")
+            : node.closest(".content");
+        if (!contentEl) return; // 如果没有找到 .content 元素，直接返回
+
+        const type = contentEl.dataset.type; // 获取当前内容块的 type，例如 "li" 或 "taskitem"
+
+        // 只处理列表项或任务项
+        if (type === "li" || type === "taskitem") {
+          e.preventDefault(); // 阻止默认 Enter 行为（换行）
+
+          const currentItem = contentEl.closest("li.block"); // 当前列表项的 li.block
+          const listContainer = currentItem.parentElement; // 当前列表的容器（ul 或 ol）
+          const listWrapperBlock = listContainer.closest(".block"); // 整个列表所在的 block
+
+          // 如果当前列表项内容为空
+          if (contentEl.textContent.trim() === "") {
+            // 创建一个新的普通段落块
+            const newP = createBlock("p", "");
+
+            // 将新段落插入到列表所在块之后
+            listWrapperBlock.parentElement.insertBefore(
+              newP,
+              listWrapperBlock.nextElementSibling
+            );
+
+            // 删除当前空列表项
+            currentItem.remove();
+
+            // 如果列表容器已经没有子节点，删除整个列表块
+            if (!listContainer.hasChildNodes()) {
+              listWrapperBlock.remove();
+            }
+
+            // 将光标聚焦到新段落的内容块中
+            newP.querySelector(".content")?.focus();
+          } else {
+            // 当前列表项有内容，按 Enter 只是分出新列表项
+            const newItem = createBlock(type, ""); // 创建相同类型的列表项
+            listContainer.insertBefore(
+              newItem,
+              currentItem.nextElementSibling // 插入到当前列表项后面
+            );
+
+            // 光标聚焦到新列表项的内容块中
+            newItem.querySelector(".content")?.focus();
+          }
+
+          // 保存编辑器状态（防止数据丢失）
+          saveEditorState();
+        }
+      });
+    </script>
+    <!-- [核心函数] 序列化-将编辑器中的一个块及其子块转换为JSON 对象(不懂??) -->
+    <script>
+      function serializeBlock(block) {
+        const type = block.dataset.type;
+        const data = { type };
+        if (type === "li" || type === "taskitem") {
+          const contentEl = block.querySelector(".content");
+          if (contentEl) data.content = contentEl.innerHTML;
+          if (type === "taskitem")
+            data.checked = !!block.querySelector(".task-checkbox")?.checked;
+          return data;
+        }
+        const contentEl = block.querySelector(".content");
+        if (contentEl) data.content = contentEl.innerHTML;
+        if (type === "heading") {
+          data.level =
+            parseInt(block.querySelector(".content")?.dataset.level, 10) || 2;
+        }
+        if (type === "pre") {
+          data.lang = block.dataset.lang || "javascript";
+          data.content = block.querySelector("code")?.textContent || "";
+        }
+        if (type === "table") {
+          data.tableContent = block.querySelector("table")?.innerHTML || "";
+        }
+        if (type === "img") {
+          const img = block.querySelector("img");
+          if (img) data.src = img.src;
+        }
+        const details = block.querySelector(":scope > details");
+        if (details) data.openState = details.open;
+        const childrenContainer = block.querySelector(
+          ":scope > .block-children, :scope > details > .block-children"
+        );
+        if (childrenContainer && childrenContainer.children.length > 0) {
+          data.children = [...childrenContainer.children]
+            .filter(
+              (c) =>
+                c.classList &&
+                (c.classList.contains("block") || c.tagName === "LI")
+            )
+            .map(serializeBlock);
+        }
+        return data;
+      }
+    </script>
+    <!-- [核心函数]保存编辑器状态到localStorage -->
+    <script>
+      const saveEditorState = debounce(() => {
+        if (historyLock) return;
+        try {
+          const arr = [...editor.children]
+            .filter((c) => c.classList && c.classList.contains("block"))
+            .map(serializeBlock);
+          const s = JSON.stringify(arr);
+          localStorage.setItem(LOCAL_STORAGE_KEY, s);
+          snapshot(s);
+        } catch (e) {
+          console.warn("save fail", e);
+        }
+      }, 400);
+    </script>
+    <!-- [核心函数]从localStorage加载编辑器状态 -->
+    <!-- 如果没有localstorage,则为false -->
+    <script>
+      function loadEditorState() {
+        const s = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (!s) return false;
+        try {
+          const arr = JSON.parse(s);
+          editor.innerHTML = "";
+          arr.forEach((d) => {
+            const b = createBlock(d.type, "", d);
+            if (b) editor.appendChild(b);
+          });
+          editor
+            .querySelectorAll("pre code")
+            .forEach((c) => Prism.highlightElement(c));
+          updateAllHeadingNumbers();
+          history = [];
+          historyIndex = -1;
+          snapshot(s);
+          return true;
+        } catch (e) {
+          console.error("load fail", e);
+          return false;
+        }
+      }
+    </script>
+    <!-- 撤销/重做功能 -->
+    <script>
+      function snapshot(serialized) {
+        try {
+          const s =
+            serialized ||
+            JSON.stringify(
+              [...editor.children]
+                .filter((c) => c.classList.contains("block"))
+                .map(serializeBlock)
+            );
+          if (!s) return;
+          if (historyIndex < history.length - 1)
+            history = history.slice(0, historyIndex + 1);
+          history.push(s);
+          if (history.length > HISTORY_LIMIT) history.shift();
+          historyIndex = history.length - 1;
+        } catch (e) {
+          console.warn("snapshot fail", e);
+        }
+      }
+      function applySnapshot(serialized) {
+        try {
+          historyLock = true;
+          const arr = JSON.parse(serialized);
+          editor.innerHTML = "";
+          arr.forEach((d) => {
+            const b = createBlock(d.type, "", d);
+            if (b) editor.appendChild(b);
+          });
+          editor
+            .querySelectorAll("pre code")
+            .forEach((c) => Prism.highlightElement(c));
+          updateAllHeadingNumbers();
+        } catch (e) {
+          console.error("apply snapshot fail", e);
+        } finally {
+          historyLock = false;
+        }
+      }
+      function undo() {
+        if (historyIndex > 0) {
+          historyIndex--;
+          applySnapshot(history[historyIndex]);
+        }
+      }
+      function redo() {
+        if (historyIndex < history.length - 1) {
+          historyIndex++;
+          applySnapshot(history[historyIndex]);
+        }
+      }
+    </script>
+    <!-- [核心功能]递归更新所有标题的编号(如1.，1.1，1.2.，2.) -->
+    <script>
+      function updateAllHeadingNumbers() {
+        function walk(container, prefix = "", level = 0) {
+          let idx = 1;
+          [...container.children]
+            .filter((ch) => ch.classList && ch.classList.contains("block"))
+            .forEach((child) => {
+              if (child.dataset.type === "heading") {
+                const num = prefix ? `${prefix}.${idx}` : `${idx}`;
+                const span = child.querySelector(".heading-number");
+                if (span) span.textContent = num + ". ";
+                const contentEl = child.querySelector(".content");
+                if (contentEl) {
+                  const wantTag = `h${Math.min(6, level + 1)}`;
+                  if (contentEl.tagName.toLowerCase() !== wantTag) {
+                    const newH = document.createElement(wantTag);
+                    newH.className = "content";
+                    newH.setAttribute("contenteditable", "true");
+                    newH.innerHTML = contentEl.innerHTML;
+                    newH.dataset.type = "heading";
+                    newH.dataset.level = level + 1;
+                    contentEl.replaceWith(newH);
+                    newH.addEventListener(
+                      "input",
+                      debounce(() => saveEditorState(), 400)
+                    );
+                  } else {
+                    contentEl.dataset.level = level + 1;
+                  }
+                }
+                const kids = child.querySelector(".block-children");
+                if (kids) walk(kids, num, level + 1);
+                idx++;
+              }
+            });
+        }
+        walk(editor);
+        updateToc();
+      }
+    </script>
+    <!-- [核心功能]解析 Markdown 文本并插入到编辑器 -->
+    <script>
+      function parseAndInsertMarkdown(
+        mdText,
+        targetContainer = editor,
+        beforeEl = null
+      ) {
+        const md = window.markdownit
+          ? window.markdownit({
+              html: true,
+              linkify: true,
+              typographer: true,
+            })
+          : null;
+        if (!md) {
+          console.error("markdown-it library not found!");
+          return;
+        }
+        const html = md.render(mdText);
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        const parentStack = [{ container: targetContainer, level: 0 }];
+        Array.from(tmp.childNodes).forEach((node) => {
+          if (node.nodeType !== Node.ELEMENT_NODE) return;
+          const name = node.nodeName.toLowerCase();
+          let newBlock = null;
+          if (name.match(/^h([1-6])$/)) {
+            const level = parseInt(RegExp.$1, 10);
+            newBlock = createBlock("heading", "", {
+              level,
+              content: node.innerHTML,
+              openState: true,
+            });
+            while (
+              parentStack.length > 1 &&
+              parentStack[parentStack.length - 1].level >= level
+            ) {
+              parentStack.pop();
+            }
+            const currentParent = parentStack[parentStack.length - 1].container;
+            currentParent.appendChild(newBlock);
+            parentStack.push({
+              container: newBlock.querySelector(".block-children"),
+              level: level,
+            });
+          } else {
+            if (name === "p")
+              newBlock = createBlock("p", "", { content: node.innerHTML });
+            else if (name === "pre") {
+              const code = node.querySelector("code");
+              const lang =
+                code && code.className.match(/language-(\S+)/)
+                  ? RegExp.$1
+                  : "plaintext";
+              newBlock = createBlock("pre", "", {
+                content: code ? code.textContent : node.textContent,
+                lang,
+              });
+            } else if (name === "ul") {
+              const lis = Array.from(node.querySelectorAll(":scope > li"));
+              const isTask = lis.some((li) =>
+                /^\s*\[[ xX]\]\s*/.test(li.textContent)
+              );
+              if (isTask) {
+                newBlock = createBlock("task");
+                const cont = newBlock.querySelector(".block-children");
+                lis.forEach((li) => {
+                  const text = li.innerHTML
+                    .replace(/^\s*<input[^>]*>\s*/, "")
+                    .replace(/^\s*\[[ xX]\]\s*/, "");
+                  const checked =
+                    /^\s*\[[xX]\]/.test(li.innerHTML) ||
+                    (li.firstChild && li.firstChild.checked);
+                  cont.appendChild(
+                    createBlock("taskitem", "", { content: text, checked })
+                  );
+                });
+              } else {
+                newBlock = createBlock("ul");
+                const cont = newBlock.querySelector(".block-children");
+                lis.forEach((li) =>
+                  cont.appendChild(
+                    createBlock("li", "", { content: li.innerHTML })
+                  )
+                );
+              }
+            } else if (name === "ol") {
+              newBlock = createBlock("ol");
+              const cont = newBlock.querySelector(".block-children");
+              node
+                .querySelectorAll(":scope > li")
+                .forEach((li) =>
+                  cont.appendChild(
+                    createBlock("li", "", { content: li.innerHTML })
+                  )
+                );
+            } else if (name === "blockquote")
+              newBlock = createBlock("blockquote", "", {
+                content: node.innerHTML,
+              });
+            else if (name === "table")
+              newBlock = createBlock("table", "", {
+                tableContent: node.innerHTML,
+              });
+            else if (name === "img")
+              newBlock = createBlock("img", "", {
+                src: node.getAttribute("src"),
+              });
+            else newBlock = createBlock("p", "", { content: node.outerHTML });
+            if (newBlock) {
+              const currentParent =
+                parentStack[parentStack.length - 1].container;
+              currentParent.appendChild(newBlock);
+            }
+          }
+        });
+        updateAllHeadingNumbers();
+        saveEditorState();
+      }
+    </script>
+    <!-- [核心功能]导出编辑器内容为 Markdown 文件 -->
+    <script>
+      function exportToMarkdown() {
+        if (typeof TurndownService === "undefined") {
+          console.error("Turndown library not found!");
+          return;
+        }
+        const turndownService = new TurndownService({ headingStyle: "atx" });
+        turndownService.addRule("taskListItem", {
+          filter: function (node, options) {
+            return (
+              node.nodeName === "LI" &&
+              node.classList.contains("block") &&
+              node.dataset.type === "taskitem"
+            );
+          },
+          replacement: function (content, node) {
+            const checkbox = node.querySelector(".task-checkbox");
+            const checked = checkbox && checkbox.checked ? "[x]" : "[ ]";
+            const contentDiv = node.querySelector(".content");
+            const innerContent = turndownService.turndown(contentDiv || "");
+            return `- ${checked} ${innerContent}`;
+          },
+        });
+        turndownService.addRule("taskListContainer", {
+          filter: function (node) {
+            return node.nodeName === "DIV" && node.dataset.type === "task";
+          },
+          replacement: function (content) {
+            return content;
+          },
+        });
+        const clone = editor.cloneNode(true);
+        clone
+          .querySelectorAll(
+            ".drag-handle, .delete-btn, .code-toolbar, .heading-number, .task-checkbox"
+          )
+          .forEach((n) => n.remove());
+        const md = turndownService.turndown(clone);
+        const MdFILE_NAME = FILE_NAME.replace(/\.[^/.]+$/, "") + ".md";
+        downloadFile(MdFILE_NAME, md, "text/markdown");
+      }
+    </script>
+    <!-- FAB（悬浮操作按钮）相关功能 -->
+    <script>
+      const mdInput = document.createElement("input");
+      mdInput.type = "file";
+      mdInput.accept = ".md,.markdown,.txt";
+      mdInput.style.display = "none";
+      mdInput.addEventListener("change", async (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+        const txt = await f.text();
+        parseAndInsertMarkdown(txt, editor, null);
+        e.target.value = "";
+      });
+      document.body.appendChild(mdInput);
+      function downloadHTML() {
+        // 获取完整 HTML（包含 <html>、<head>、<body>）
+        const fullHTML =
+          "<!doctype html>\n" + document.documentElement.outerHTML;
+        // 从url获取当前文件名（解码中文）
+        let filename = decodeURIComponent(
+          location.pathname.split("/").pop() || "document.html"
+        );
+
+        // 防止非法文件名字符
+        filename = FILE_NAME;
+
+        // 如果没有扩展名，补上 .html
+        if (!filename.includes(".")) {
+          filename += ".html";
+        }
+        // 调用下载文件函数
+        downloadFile(filename, fullHTML, "text/html");
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
+      }
+      //清空editor的内容
+      function clearAll() {
+        const editor = document.getElementById("editor");
+        if (editor) {
+          editor.innerHTML = "";
+        }
+      }
+      //折叠所有标题
+      function FoldHeading() {
+        document.querySelectorAll("details").forEach((detail) => {
+          if (detail.hasAttribute("open")) {
+            detail.removeAttribute("open");
+          }
+        });
+      }
+
+      function exportToPDF() {
+        if (typeof html2pdf === "undefined") {
+          console.error("html2pdf library not found!");
+          return;
+        }
+        const node = editor.cloneNode(true);
+        node.style.padding = "20px";
+        node
+          .querySelectorAll(
+            ".drag-handle, .delete-btn, .code-toolbar, .table-controls"
+          )
+          .forEach((n) => n.remove());
+        const opt = {
+          margin: 10,
+          filename: "document.pdf",
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        };
+        html2pdf().set(opt).from(node).save();
+      }
+      const fabMain = document.getElementById("fab-main");
+      const fabMenu = document.getElementById("fab-menu");
+      fabMain.addEventListener("click", (e) => {
+        e.stopPropagation();
+        fabMenu.style.display =
+          fabMenu.style.display === "flex" ? "none" : "flex";
+      });
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest("#fab")) fabMenu.style.display = "none";
+      });
+      document.getElementById("fab-import").addEventListener("click", () => {
+        mdInput.click();
+        fabMenu.style.display = "none";
+      });
+      document.getElementById("fab-export-md").addEventListener("click", () => {
+        exportToMarkdown();
+        fabMenu.style.display = "none";
+      });
+      document
+        .getElementById("fab-export-pdf")
+        .addEventListener("click", () => {
+          exportToPDF();
+          fabMenu.style.display = "none";
+        });
+      document.getElementById("fab-save").addEventListener("click", () => {
+        downloadHTML();
+        fabMenu.style.display = "none";
+      });
+      document.getElementById("fab-fold").addEventListener("click", () => {
+        FoldHeading();
+        fabMenu.style.display = "none";
+      });
+      document.getElementById("fab-clean-all").addEventListener("click", () => {
+        clearAll();
+        fabMenu.style.display = "none";
+      });
+      document.getElementById("fab-clear").addEventListener("click", () => {
+        if (confirm("确认清空本地保存？")) {
+          localStorage.removeItem(LOCAL_STORAGE_KEY);
+          window.location.reload();
+        }
+        fabMenu.style.display = "none";
+      });
+    </script>
+    <!-- TOC （目录)相关功能 -->
+    <script>
+      const tocList = document.getElementById("toc-list");
+      const tocFab = document.getElementById("toc-fab");
+      const tocPanel = document.getElementById("toc-panel");
+      let tocHideTimeout = null;
+
+      tocFab.addEventListener("mouseenter", () => {
+        clearTimeout(tocHideTimeout);
+        tocPanel.classList.add("is-visible");
+      });
+
+      tocFab.addEventListener("mouseleave", () => {
+        tocHideTimeout = setTimeout(() => {
+          tocPanel.classList.remove("is-visible");
+        }, 300);
+      });
+
+      function updateToc() {
+        tocList.innerHTML = "";
+        const headings = editor.querySelectorAll('.block[data-type="heading"]');
+        if (headings.length === 0) {
+          tocList.innerHTML =
+            '<li><a href="#" style="color:#999; pointer-events:none;">暂无标题</a></li>';
+          return;
+        }
+        headings.forEach((headingBlock, index) => {
+          const contentEl = headingBlock.querySelector(".content");
+          const numberSpan = headingBlock.querySelector(".heading-number");
+          if (!contentEl || !numberSpan) return;
+
+          const id = headingBlock.id || `heading-${index}-${Date.now()}`;
+          headingBlock.id = id;
+
+          const level = (numberSpan.textContent.match(/\./g) || []).length + 1;
+
+          const li = document.createElement("li");
+          const a = document.createElement("a");
+          a.href = `#${id}`;
+          a.textContent = `${numberSpan.textContent} ${contentEl.textContent}`;
+          a.className = `toc-level-${level}`;
+          li.appendChild(a);
+          tocList.appendChild(li);
+        });
+      }
+
+      document.getElementById("toc-panel").addEventListener("click", (e) => {
+        if (e.target.tagName === "A" && e.target.hash) {
+          e.preventDefault();
+          const targetId = e.target.hash.substring(1);
+          const targetElement = document.getElementById(targetId);
+          if (targetElement) {
+            let parent = targetElement.parentElement;
+            while (parent) {
+              if (parent.tagName === "DETAILS" && !parent.open) {
+                parent.open = true;
+              }
+              parent = parent.parentElement;
+            }
+            targetElement.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          }
+        }
+      });
+    </script>
+    <!-- 初始化与结束工作 -->
+    <script>
+      initColorPalette();
+      //如果没有localstorage的储存,则自动加入一个内容
+
+      if (!loadEditorState()) {
+        const h1 = createBlock("heading", "🤪JI_tion编辑器🤪", {
+          level: 2,
+          openState: true,
+        });
+        const p1 = createBlock(
+          "p",
+          "在任意文本块内输入 `` ` `` (两个反引号)可以调出命令菜单。拖拽标题左侧的三角形可以折叠/展开内容。"
+        );
+        const h2 = createBlock("heading", "标题", {
+          level: 3,
+          openState: true,
+        });
+        const p2 = createBlock("p", "下面演示列表、任务、代码与表格：");
+        const ul = createBlock("ul");
+        ul.querySelector(".block-children").appendChild(
+          createBlock("li", "无序列表项 A")
+        );
+        ul.querySelector(".block-children").appendChild(
+          createBlock("li", "无序列表项 B")
+        );
+        const task = createBlock("task");
+        task
+          .querySelector(".block-children")
+          .appendChild(createBlock("taskitem", "任务项 1", { checked: false }));
+        task
+          .querySelector(".block-children")
+          .appendChild(createBlock("taskitem", "任务项 2", { checked: true }));
+        const pre = createBlock("pre", "", {
+          content: 'console.log("Hello, collapsible code block!");',
+          lang: "javascript",
+        });
+        const table = createBlock("table");
+        const h3 = createBlock("heading", "这是一个三级标题", { level: 4 });
+        const p3 = createBlock("p", "这是三级标题下的内容。");
+
+        editor.appendChild(h1);
+        const h1_children = h1.querySelector(".block-children");
+        h1_children.appendChild(p1);
+        h1_children.appendChild(h2);
+
+        const h2_children = h2.querySelector(".block-children");
+        h2_children.appendChild(p2);
+        h2_children.appendChild(ul);
+        h2_children.appendChild(task);
+        h2_children.appendChild(pre);
+        h2_children.appendChild(table);
+        h2_children.appendChild(h3);
+
+        const h3_children = h3.querySelector(".block-children");
+        h3_children.appendChild(p3);
+
+        updateAllHeadingNumbers();
+        saveEditorState();
+      }
+      //window指的是整个浏览器
+      //document值得是当前网页
+      //beforeunload 是浏览器事件，当用户关闭、刷新页面或跳转时触发。
+      // saveEditorState 是你定义的函数，用来保存当前编辑器内容到本地缓存或服务器。
+      // 作用：防止未保存的内容丢失。
+      window.addEventListener("beforeunload", saveEditorState);
+      // 如果使用ctrl+s,保存为html
+      document.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+          e.preventDefault();
+          downloadHTML();
+        }
+      });
+      window._undo = undo;
+      window._redo = redo;
+      window._save = saveEditorState;
+      window._exportMD = exportToMarkdown;
+    </script>
+  </body>
+</html>
